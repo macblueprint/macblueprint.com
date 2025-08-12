@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
 import {
   Apple,
   Moon,
@@ -8,12 +7,11 @@ import {
   MessageCircle,
   Heart,
   Plus,
-  Send,
   X,
-  Search,
+  Search
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -27,81 +25,69 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
-// ---------------------------------------------------------------------
-// Configuración de la aplicación
-// Esta versión se enfoca en la funcionalidad central: feed, post y likes.
-// Se ha simplificado la autenticación para iniciar sesión de forma
-// anónima automáticamente, eliminando el modal de inicio de sesión.
-// ---------------------------------------------------------------------
-
-// Componente del encabezado (Header)
-const Header = ({ onToggleTheme, user, darkMode }) => {
-  return (
-    <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
-      <div className={`backdrop-filter backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all duration-300 ease-in-out`}>
-        <nav className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 p-2 md:p-3">
-            <Apple className="h-6 w-6 text-white" />
-            <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">
-              Mac Blueprint
-            </h1>
-          </div>
-          <div className="flex items-center space-x-2 p-2 md:p-3">
-            <button
-              onClick={onToggleTheme}
-              className="p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
-            >
-              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
-            {user ? (
-              <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out hover:scale-105">
-                <User className="h-5 w-5" />
-                <span className="hidden sm:inline-block text-sm">@{user.uid.slice(0, 5)}...</span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
-                <User className="h-5 w-5" />
-                <span className="hidden sm:inline-block text-sm">Cargando...</span>
-              </div>
-            )}
-          </div>
-        </nav>
-      </div>
-    </header>
-  );
+// ---------- CONFIG FIREBASE ----------
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_PROYECTO.firebaseapp.com",
+  projectId: "TU_PROJECT_ID",
+  storageBucket: "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_MESSAGING_SENDER_ID",
+  appId: "TU_APP_ID"
 };
 
-// Componente de una publicación (Post)
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// ---------- COMPONENTES ----------
+const Header = ({ onToggleTheme, user, darkMode }) => (
+  <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
+    <div className={`backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all`}>
+      <nav className="flex items-center justify-between">
+        <div className="flex items-center space-x-2 p-2 md:p-3">
+          <Apple className="h-6 w-6 text-white" />
+          <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">Mac Blueprint</h1>
+        </div>
+        <div className="flex items-center space-x-2 p-2 md:p-3">
+          <button onClick={onToggleTheme} className="p-2 text-white rounded-full hover:scale-125 hover:bg-white/10">
+            {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+          {user ? (
+            <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
+              <User className="h-5 w-5" />
+              <span className="hidden sm:inline-block text-sm">@{user.uid.slice(0, 5)}...</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
+              <User className="h-5 w-5" />
+              <span className="hidden sm:inline-block text-sm">Cargando...</span>
+            </div>
+          )}
+        </div>
+      </nav>
+    </div>
+  </header>
+);
+
 const Post = ({ post, user, onLike }) => {
   const isLiked = post.likedBy?.includes(user?.uid) || false;
   const [likes, setLikes] = useState(post.likes || 0);
   const [localLiked, setLocalLiked] = useState(isLiked);
 
-  // Sincronizar el estado local si la prop cambia
-  useEffect(() => {
-    setLocalLiked(isLiked);
-  }, [isLiked]);
-
-  // Sincronizar el conteo de likes si la prop cambia
-  useEffect(() => {
-    setLikes(post.likes);
-  }, [post.likes]);
+  useEffect(() => setLocalLiked(isLiked), [isLiked]);
+  useEffect(() => setLikes(post.likes), [post.likes]);
 
   const handleLike = () => {
-    if (user) {
-      // Optimistic UI update
-      setLocalLiked(!localLiked);
-      setLikes(localLiked ? likes - 1 : likes + 1);
-      onLike(post.id, user.uid, localLiked);
-    }
+    if (!user) return;
+    setLocalLiked(!localLiked);
+    setLikes(localLiked ? likes - 1 : likes + 1);
+    onLike(post.id, user.uid, localLiked);
   };
 
   return (
-    <div
-      className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-500 ease-in-out transform hover:-translate-y-2 hover:shadow-2xl animate-fade-in-up"
-    >
+    <div className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all">
       <div className="flex items-center space-x-4 mb-4">
-        <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center text-lg font-bold">
+        <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center font-bold">
           {post.author?.charAt(0) || 'U'}
         </div>
         <div>
@@ -109,117 +95,48 @@ const Post = ({ post, user, onLike }) => {
           <p className="text-sm text-gray-500 dark:text-gray-400">@{post.authorId.slice(0, 8)}...</p>
         </div>
       </div>
-      <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{post.content}</p>
+      <p className="text-zinc-800 dark:text-zinc-200 mb-4">{post.content}</p>
       <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleLike}
-            className={`transition-all duration-300 ease-in-out transform hover:scale-125 hover:text-red-500 ${localLiked ? 'text-red-500 scale-125' : ''}`}
-          >
-            <Heart size={20} fill={localLiked ? 'currentColor' : 'none'} />
-          </button>
-          <span className="text-sm">{likes}</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <MessageCircle size={20} />
-          <span className="text-sm">0</span>
-        </div>
+        <button onClick={handleLike} className={`hover:scale-125 ${localLiked ? 'text-red-500 scale-125' : ''}`}>
+          <Heart size={20} fill={localLiked ? 'currentColor' : 'none'} />
+        </button>
+        <span>{likes}</span>
+        <MessageCircle size={20} />
+        <span>0</span>
       </div>
     </div>
   );
 };
 
-// Componente del feed principal
-const Feed = ({ posts, user, onNewPost, darkMode, onLike }) => {
-  return (
-    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
-      {user && (
-        <div className="flex justify-center mb-10">
-          <button
-            onClick={onNewPost}
-            className={`flex items-center space-x-2 px-6 py-3 rounded-full text-lg font-medium transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50
-              ${darkMode ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-zinc-800 text-white hover:bg-black'}`}
-          >
-            <Plus className="h-6 w-6" />
-            <span>Crear Publicación</span>
-          </button>
-        </div>
-      )}
-      <div className={`flex items-center p-4 rounded-full mb-10 shadow-lg border border-white/20 transition-all duration-300 ease-in-out
-        ${darkMode ? 'bg-black/30' : 'bg-white/50'}`}>
-        <Search className="text-gray-500 dark:text-gray-400 mr-3" />
-        <input
-          type="text"
-          placeholder="Buscar publicaciones..."
-          className={`flex-1 bg-transparent border-none outline-none text-zinc-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-lg`}
-        />
-      </div>
-
-      <div className="space-y-8">
-        {posts.map((post) => (
-          <Post key={post.id} post={post} user={user} onLike={onLike} />
-        ))}
-      </div>
-    </main>
-  );
-};
-
-// Componente del modal para crear una publicación
-const PostModal = ({ onClose, user, db }) => {
+const PostModal = ({ onClose, user }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (content.trim() && user && db) {
-      setLoading(true);
-      try {
-        const postsCollectionRef = collection(db, 'posts');
-        await addDoc(postsCollectionRef, {
-          author: "Usuario Anónimo",
-          authorId: user.uid,
-          content: content.trim(),
-          createdAt: serverTimestamp(),
-          likes: 0,
-          likedBy: [],
-        });
-        setContent('');
-        onClose();
-      } catch (e) {
-        console.error("Error adding document: ", e);
-      } finally {
-        setLoading(false);
-      }
-    }
+    if (!content.trim()) return;
+    setLoading(true);
+    await addDoc(collection(db, 'posts'), {
+      author: "Usuario Anónimo",
+      authorId: user.uid,
+      content: content.trim(),
+      createdAt: serverTimestamp(),
+      likes: 0,
+      likedBy: [],
+    });
+    setContent('');
+    setLoading(false);
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-lg relative animate-zoom-in transition-all duration-300 ease-in-out">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
-        >
-          <X size={24} />
-        </button>
-        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
-          Crear Publicación
-        </h2>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-lg relative">
+        <button onClick={onClose} className="absolute top-4 right-4"><X size={24} /></button>
+        <h2 className="text-2xl font-bold mb-6 text-center">Crear Publicación</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="w-full p-4 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 h-40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-              placeholder="¿Qué tienes en mente?..."
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading || !content.trim()}
-            className={`w-full text-white py-3 rounded-xl font-bold transition-all duration-300 ease-in-out transform hover:scale-105
-              ${loading || !content.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
-          >
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-4 rounded-xl border h-40 resize-none" placeholder="¿Qué tienes en mente?..." />
+          <button type="submit" disabled={loading} className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600">
             {loading ? 'Subiendo...' : 'Publicar'}
           </button>
         </form>
@@ -228,162 +145,58 @@ const PostModal = ({ onClose, user, db }) => {
   );
 };
 
-// Componente principal de la aplicación
-const App = () => {
+export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
   const [posts, setPosts] = useState([]);
-  const [firebase, setFirebase] = useState({ db: null, auth: null });
-  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    // Inicializar Firebase
-    try {
-      const firebaseConfig = JSON.parse(__firebase_config);
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-      const auth = getAuth(app);
-      setFirebase({ db, auth });
-
-      // Autenticar al usuario de forma anónima
-      const signIn = async () => {
-        try {
-          if (typeof __initial_auth_token !== 'undefined') {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-          setUser({ uid: auth.currentUser.uid, name: 'Usuario Anónimo' });
-        } catch (e) {
-          console.error("Error during anonymous sign-in or with custom token:", e);
-        }
-        setIsAuthReady(true);
-      };
-
-      onAuthStateChanged(auth, (authUser) => {
-        if (!authUser) {
-          signIn();
-        } else {
-          setUser({ uid: authUser.uid, name: 'Usuario Anónimo' });
-          setIsAuthReady(true);
-        }
-      });
-
-    } catch (e) {
-      console.error("Error initializing Firebase:", e);
-    }
+    onAuthStateChanged(auth, (authUser) => {
+      if (!authUser) signInAnonymously(auth);
+      else setUser(authUser);
+    });
   }, []);
 
   useEffect(() => {
-    // Sincronizar posts con Firestore una vez que la autenticación esté lista
-    if (isAuthReady && firebase.db) {
-      const postsCollectionRef = collection(firebase.db, 'posts');
-      const q = query(postsCollectionRef);
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const postsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setPosts(postsData);
-      }, (error) => {
-        console.error("Error fetching posts:", error);
-      });
-
-      return () => unsubscribe();
-    }
-  }, [isAuthReady, firebase.db]);
+    const q = query(collection(db, 'posts'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, []);
 
   const handleLike = async (postId, userId, hasLiked) => {
-    if (!firebase.db) return;
-
-    const postRef = doc(firebase.db, 'posts', postId);
-    try {
-      await updateDoc(postRef, {
-        likes: hasLiked ? (posts.find(p => p.id === postId).likes || 0) - 1 : (posts.find(p => p.id === postId).likes || 0) + 1,
-        likedBy: hasLiked ? arrayRemove(userId) : arrayUnion(userId)
-      });
-    } catch (error) {
-      console.error('Error updating likes:', error);
-    }
-  };
-
-  const toggleTheme = () => {
-    setDarkMode(!darkMode);
+    const postRef = doc(db, 'posts', postId);
+    await updateDoc(postRef, {
+      likes: hasLiked ? posts.find(p => p.id === postId).likes - 1 : posts.find(p => p.id === postId).likes + 1,
+      likedBy: hasLiked ? arrayRemove(userId) : arrayUnion(userId)
+    });
   };
 
   return (
-    <div className={`min-h-screen font-sans ${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} transition-colors duration-500`}>
-      <style jsx>{`
-        @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes zoom-in {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-        .animate-fade-in-up {
-          animation: fade-in-up 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-        }
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out forwards;
-        }
-        .animate-zoom-in {
-          animation: zoom-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-      `}</style>
-
-      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} />}
-
-      <Header
-        onToggleTheme={toggleTheme}
-        user={user}
-        darkMode={darkMode}
-      />
-
-      <div className="pt-24 md:pt-28">
-        <Feed
-          posts={posts}
-          user={user}
-          onNewPost={() => setShowPostModal(true)}
-          darkMode={darkMode}
-          onLike={handleLike}
-        />
-      </div>
+    <div className={`${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} min-h-screen`}>
+      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} />}
+      <Header onToggleTheme={() => setDarkMode(!darkMode)} user={user} darkMode={darkMode} />
+      <main className="mt-28 px-4 max-w-4xl mx-auto pb-24">
+        {user && (
+          <div className="flex justify-center mb-10">
+            <button onClick={() => setShowPostModal(true)} className={`${darkMode ? 'bg-white/20 text-white' : 'bg-zinc-800 text-white'} px-6 py-3 rounded-full`}>
+              <Plus className="h-6 w-6" /> Crear Publicación
+            </button>
+          </div>
+        )}
+        <div className={`${darkMode ? 'bg-black/30' : 'bg-white/50'} flex items-center p-4 rounded-full mb-10`}>
+          <Search className="mr-3" />
+          <input type="text" placeholder="Buscar publicaciones..." className="bg-transparent flex-1 outline-none" />
+        </div>
+        <div className="space-y-8">
+          {posts.map((post) => (
+            <Post key={post.id} post={post} user={user} onLike={handleLike} />
+          ))}
+        </div>
+      </main>
     </div>
   );
-};
-
-const container = document.getElementById('root');
-const root = createRoot(container);
-root.render(<App />);
-
-// Opciones de configuración de Tailwind para este componente
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: {
-        'apple-gray': '#F5F5F7',
-        'apple-dark': '#1F1F1F',
-      },
-    },
-  },
-  darkMode: 'class',
 }
+
