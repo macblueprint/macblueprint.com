@@ -11,14 +11,6 @@ import {
   Send,
   X,
   Search,
-  Mail,
-  Phone,
-  MessageSquare,
-  Link,
-  Info,
-  Activity,
-  ChevronRight,
-  ChevronDown,
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
@@ -31,50 +23,29 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  serverTimestamp,
 } from 'firebase/firestore';
 
 // ---------------------------------------------------------------------
-// ¡IMPORTANTE!
-//
-// He actualizado la inicialización de Firebase para que use las
-// variables globales de configuración del entorno (__firebase_config,
-// __initial_auth_token) en lugar de una configuración genérica.
-// Esto debería solucionar el problema de la página en blanco.
+// Configuración de la aplicación
+// Esta versión se enfoca en la funcionalidad central: feed, post y likes.
+// Se ha simplificado la autenticación para iniciar sesión de forma
+// anónima automáticamente, eliminando el modal de inicio de sesión.
 // ---------------------------------------------------------------------
 
 // Componente del encabezado (Header)
-const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-
+const Header = ({ onToggleTheme, user, darkMode }) => {
   return (
     <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
       <div className={`backdrop-filter backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all duration-300 ease-in-out`}>
         <nav className="flex items-center justify-between">
-          <div
-            className="flex items-center space-x-2 cursor-pointer p-2 md:p-3 transition-transform duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10 rounded-full"
-            onClick={() => onNavigate('profile')}
-          >
+          <div className="flex items-center space-x-2 p-2 md:p-3">
             <Apple className="h-6 w-6 text-white" />
             <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">
               Mac Blueprint
             </h1>
           </div>
-
-          <div className="hidden md:flex flex-1 justify-center space-x-6 text-white text-sm font-medium">
-            <button
-              onClick={() => onNavigate('feed')}
-              className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110"
-            >
-              Feed
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
-            </button>
-            <button className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110">
-              Contactar
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
-            </button>
-          </div>
-
           <div className="flex items-center space-x-2 p-2 md:p-3">
             <button
               onClick={onToggleTheme}
@@ -85,57 +56,43 @@ const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => 
             {user ? (
               <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out hover:scale-105">
                 <User className="h-5 w-5" />
-                <span className="hidden sm:inline-block text-sm">{user.name}</span>
+                <span className="hidden sm:inline-block text-sm">@{user.uid.slice(0, 5)}...</span>
               </div>
             ) : (
-              <button
-                onClick={onLoginClick}
-                className="flex items-center space-x-2 p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10"
-              >
+              <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
                 <User className="h-5 w-5" />
-                <span className="hidden sm:inline-block text-sm">Log in</span>
-              </button>
+                <span className="hidden sm:inline-block text-sm">Cargando...</span>
+              </div>
             )}
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="md:hidden p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-              </svg>
-            </button>
           </div>
         </nav>
       </div>
-      {menuOpen && (
-        <div className="md:hidden absolute top-full mt-2 w-full backdrop-filter backdrop-blur-2xl bg-white/30 dark:bg-black/30 rounded-xl shadow-xl border-white/20 border-2 p-4 animate-fade-in-down transition-all duration-300">
-          <button
-            onClick={() => { onNavigate('feed'); setMenuOpen(false); }}
-            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
-          >
-            Feed
-          </button>
-          <button
-            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
-          >
-            Contactar
-          </button>
-        </div>
-      )}
     </header>
   );
 };
 
 // Componente de una publicación (Post)
 const Post = ({ post, user, onLike }) => {
-  const [liked, setLiked] = useState(post.likedBy?.includes(user?.uid) || false);
+  const isLiked = post.likedBy?.includes(user?.uid) || false;
   const [likes, setLikes] = useState(post.likes || 0);
+  const [localLiked, setLocalLiked] = useState(isLiked);
+
+  // Sincronizar el estado local si la prop cambia
+  useEffect(() => {
+    setLocalLiked(isLiked);
+  }, [isLiked]);
+
+  // Sincronizar el conteo de likes si la prop cambia
+  useEffect(() => {
+    setLikes(post.likes);
+  }, [post.likes]);
 
   const handleLike = () => {
     if (user) {
-      onLike(post.id, user.uid, liked);
-      setLiked(!liked);
-      setLikes(liked ? likes - 1 : likes + 1);
+      // Optimistic UI update
+      setLocalLiked(!localLiked);
+      setLikes(localLiked ? likes - 1 : likes + 1);
+      onLike(post.id, user.uid, localLiked);
     }
   };
 
@@ -149,30 +106,23 @@ const Post = ({ post, user, onLike }) => {
         </div>
         <div>
           <p className="font-bold text-lg text-zinc-900 dark:text-white">{post.author}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.author?.toLowerCase().replace(' ', '') || 'usuario'}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.authorId.slice(0, 8)}...</p>
         </div>
       </div>
       <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{post.content}</p>
-      {post.image && (
-        <img
-          src={post.image}
-          alt="Post media"
-          className="w-full rounded-2xl mb-4 max-h-96 object-cover"
-        />
-      )}
       <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
         <div className="flex items-center space-x-2">
           <button
             onClick={handleLike}
-            className={`transition-all duration-300 ease-in-out transform hover:scale-125 hover:text-red-500 ${liked ? 'text-red-500 scale-125' : ''}`}
+            className={`transition-all duration-300 ease-in-out transform hover:scale-125 hover:text-red-500 ${localLiked ? 'text-red-500 scale-125' : ''}`}
           >
-            <Heart size={20} fill={liked ? 'currentColor' : 'none'} />
+            <Heart size={20} fill={localLiked ? 'currentColor' : 'none'} />
           </button>
           <span className="text-sm">{likes}</span>
         </div>
         <div className="flex items-center space-x-2">
           <MessageCircle size={20} />
-          <span className="text-sm">{post.comments || 0}</span>
+          <span className="text-sm">0</span>
         </div>
       </div>
     </div>
@@ -214,180 +164,6 @@ const Feed = ({ posts, user, onNewPost, darkMode, onLike }) => {
   );
 };
 
-// Componente de la página de perfil
-const Profile = ({ user, darkMode }) => {
-  const [activeSection, setActiveSection] = useState('about');
-  const [faqsOpen, setFaqsOpen] = useState({});
-
-  const faqs = [
-    { question: '¿Cómo puedo subir una publicación?', answer: 'Primero debes iniciar sesión. Una vez que lo hagas, aparecerá un botón en el feed principal para crear una nueva publicación.' },
-    { question: '¿Cómo se moderan los posts?', answer: 'Todas las publicaciones de los usuarios pasan por un filtro de moderación antes de ser visibles en el feed. Como administrador, reviso y apruebo cada post para mantener la calidad y el enfoque de la comunidad.' },
-    { question: '¿Qué tipo de noticias se publican aquí?', answer: 'Principalmente noticias sobre Apple, lanzamientos de productos, actualizaciones de software y análisis del mercado tecnológico. También comparto mis propios comunicados y opiniones.' },
-  ];
-
-  const handleFaqClick = (index) => {
-    setFaqsOpen(prev => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  return (
-    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
-      <div className={`p-8 rounded-3xl shadow-xl transition-all duration-300
-        ${darkMode ? 'bg-black/30 text-white' : 'bg-white/50 text-zinc-900'}`}
-      >
-        <div className="flex flex-col items-center mb-6">
-          <div className="h-24 w-24 bg-gray-200 dark:bg-zinc-700 rounded-full mb-4 flex items-center justify-center text-5xl font-bold">
-            M
-          </div>
-          <h2 className="text-3xl font-bold">Mac Blueprint</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Administrador y Fundador</p>
-          <div className="flex space-x-4 mt-4 text-gray-500 dark:text-gray-400">
-            <Mail size={20} className="hover:text-blue-500 transition-colors" />
-            <Link size={20} className="hover:text-blue-500 transition-colors" />
-            <Phone size={20} className="hover:text-blue-500 transition-colors" />
-          </div>
-        </div>
-        {user && (
-          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mb-4">
-            ID de usuario: {user.uid}
-          </p>
-        )}
-        <div className={`flex justify-center flex-wrap gap-2 md:gap-4 mb-8 p-2 rounded-full border border-white/20 transition-all duration-300
-          ${darkMode ? 'bg-black/20' : 'bg-white/50'}`}>
-          <button
-            onClick={() => setActiveSection('about')}
-            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
-              ${activeSection === 'about' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
-          >
-            Sobre Mí
-          </button>
-          <button
-            onClick={() => setActiveSection('faqs')}
-            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
-              ${activeSection === 'faqs' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
-          >
-            FAQs
-          </button>
-          <button
-            onClick={() => setActiveSection('activity')}
-            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
-              ${activeSection === 'activity' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
-          >
-            Actividad
-          </button>
-        </div>
-
-        <div className="space-y-8">
-          {activeSection === 'about' && (
-            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
-              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
-                <Info size={20} className="mr-2 text-blue-500" />
-                Presentación
-              </h3>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                Hola, soy el fundador de Mac Blueprint, una plataforma dedicada a las últimas noticias, análisis y discusiones sobre el ecosistema de Apple. Aquí encontrarás un espacio para conectar con otros entusiastas y estar al día con todo lo relacionado con la manzana.
-              </p>
-            </div>
-          )}
-          {activeSection === 'faqs' && (
-            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
-              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
-                <MessageSquare size={20} className="mr-2 text-blue-500" />
-                Preguntas Frecuentes
-              </h3>
-              {faqs.map((faq, index) => (
-                <div key={index} className="mb-4">
-                  <div
-                    onClick={() => handleFaqClick(index)}
-                    className="flex justify-between items-center cursor-pointer p-4 rounded-xl hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <p className="font-medium text-lg">{faq.question}</p>
-                    {faqsOpen[index] ? <ChevronDown /> : <ChevronRight />}
-                  </div>
-                  {faqsOpen[index] && (
-                    <p className={`mt-2 ml-4 text-gray-600 dark:text-gray-400 animate-fade-in`}>
-                      {faq.answer}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {activeSection === 'activity' && (
-            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
-              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
-                <Activity size={20} className="mr-2 text-blue-500" />
-                Actividad Reciente
-              </h3>
-              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
-                <li>Publicación de "Análisis del nuevo M4 de Apple" hace 2 horas.</li>
-                <li>Respuesta a un usuario sobre las betas de iOS 18 hace 1 día.</li>
-                <li>Actualización del estado del sitio: "¡Nuevas funciones en camino!" hace 3 días.</li>
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-    </main>
-  );
-};
-
-// Componente del modal para iniciar sesión
-const LoginModal = ({ onClose, onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (email && password) {
-      // Simulación de inicio de sesión
-      onLogin({ id: '1', name: 'Usuario' });
-      onClose();
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-md relative animate-zoom-in transition-all duration-300 ease-in-out">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
-        >
-          <X size={24} />
-        </button>
-        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
-          Iniciar Sesión con Apple ID
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-600 dark:text-gray-400 mb-2">Correo Electrónico</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-gray-600 dark:text-gray-400 mb-2">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition-all duration-300 ease-in-out transform hover:scale-105"
-          >
-            Continuar con Apple ID
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 // Componente del modal para crear una publicación
 const PostModal = ({ onClose, user, db }) => {
   const [content, setContent] = useState('');
@@ -400,14 +176,12 @@ const PostModal = ({ onClose, user, db }) => {
       try {
         const postsCollectionRef = collection(db, 'posts');
         await addDoc(postsCollectionRef, {
-          author: user.name,
+          author: "Usuario Anónimo",
           authorId: user.uid,
           content: content.trim(),
-          createdAt: new Date(),
+          createdAt: serverTimestamp(),
           likes: 0,
           likedBy: [],
-          comments: 0,
-          image: null,
         });
         setContent('');
         onClose();
@@ -456,10 +230,8 @@ const PostModal = ({ onClose, user, db }) => {
 
 // Componente principal de la aplicación
 const App = () => {
-  const [currentPage, setCurrentPage] = useState('feed');
   const [darkMode, setDarkMode] = useState(false);
   const [user, setUser] = useState(null);
-  const [showLogin, setShowLogin] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [posts, setPosts] = useState([]);
   const [firebase, setFirebase] = useState({ db: null, auth: null });
@@ -476,12 +248,16 @@ const App = () => {
 
       // Autenticar al usuario de forma anónima
       const signIn = async () => {
-        if (typeof __initial_auth_token !== 'undefined') {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+        try {
+          if (typeof __initial_auth_token !== 'undefined') {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+          setUser({ uid: auth.currentUser.uid, name: 'Usuario Anónimo' });
+        } catch (e) {
+          console.error("Error during anonymous sign-in or with custom token:", e);
         }
-        setUser({ uid: auth.currentUser.uid, name: 'Usuario Anónimo' });
         setIsAuthReady(true);
       };
 
@@ -510,6 +286,8 @@ const App = () => {
           ...doc.data(),
         }));
         setPosts(postsData);
+      }, (error) => {
+        console.error("Error fetching posts:", error);
       });
 
       return () => unsubscribe();
@@ -529,7 +307,6 @@ const App = () => {
       console.error('Error updating likes:', error);
     }
   };
-
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
@@ -573,33 +350,22 @@ const App = () => {
         }
       `}</style>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={(u) => setUser(u)} />}
       {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} />}
 
       <Header
-        onNavigate={setCurrentPage}
         onToggleTheme={toggleTheme}
-        onLoginClick={() => setShowLogin(true)}
         user={user}
         darkMode={darkMode}
       />
 
       <div className="pt-24 md:pt-28">
-        {currentPage === 'feed' && (
-          <Feed
-            posts={posts}
-            user={user}
-            onNewPost={() => setShowPostModal(true)}
-            darkMode={darkMode}
-            onLike={handleLike}
-          />
-        )}
-        {currentPage === 'profile' && (
-          <Profile
-            user={user}
-            darkMode={darkMode}
-          />
-        )}
+        <Feed
+          posts={posts}
+          user={user}
+          onNewPost={() => setShowPostModal(true)}
+          darkMode={darkMode}
+          onLike={handleLike}
+        />
       </div>
     </div>
   );
