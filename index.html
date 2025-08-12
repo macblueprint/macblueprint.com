@@ -1,202 +1,208 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Apple,
-  Moon,
-  Sun,
-  User,
-  MessageCircle,
-  Heart,
-  Plus,
-  X,
-  Search
-} from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import {
-  getFirestore,
-  collection,
-  query,
-  onSnapshot,
-  addDoc,
-  doc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-  serverTimestamp,
-} from 'firebase/firestore';
+import React, { useState, useEffect } from 'react'
 
-// ---------- CONFIG FIREBASE ----------
-const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID",
-  appId: "TU_APP_ID"
-};
+// TicTacToe_AppleStyle.jsx
+// Single-file React component, styled with Tailwind (Apple-like minimal glass UI)
+// Features:
+// - 1-player (vs CPU using Minimax) and 2-player local modes
+// - Scoreboard, history, undo last move, reset
+// - Smooth micro-interactions and accessible markup
+// - Tailwind utility classes assumed available in the host project
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+export default function TicTacToeApple() {
+  const emptyBoard = Array(9).fill(null)
+  const [board, setBoard] = useState(emptyBoard)
+  const [xIsNext, setXIsNext] = useState(true)
+  const [mode, setMode] = useState('1P') // '1P' or '2P'
+  const [scores, setScores] = useState({ X: 0, O: 0, ties: 0 })
+  const [history, setHistory] = useState([]) // stack of {board, xIsNext}
+  const winner = calculateWinner(board)
+  const gameOver = winner || board.every(Boolean)
 
-// ---------- COMPONENTES ----------
-const Header = ({ onToggleTheme, user, darkMode }) => (
-  <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
-    <div className={`backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all`}>
-      <nav className="flex items-center justify-between">
-        <div className="flex items-center space-x-2 p-2 md:p-3">
-          <Apple className="h-6 w-6 text-white" />
-          <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">Mac Blueprint</h1>
-        </div>
-        <div className="flex items-center space-x-2 p-2 md:p-3">
-          <button onClick={onToggleTheme} className="p-2 text-white rounded-full hover:scale-125 hover:bg-white/10">
-            {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </button>
-          {user ? (
-            <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
-              <User className="h-5 w-5" />
-              <span className="hidden sm:inline-block text-sm">@{user.uid.slice(0, 5)}...</span>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full">
-              <User className="h-5 w-5" />
-              <span className="hidden sm:inline-block text-sm">Cargando...</span>
-            </div>
-          )}
-        </div>
-      </nav>
-    </div>
-  </header>
-);
+  // CPU plays as 'O' when mode === '1P' and it's O's turn
+  useEffect(() => {
+    if (mode === '1P' && !xIsNext && !gameOver) {
+      const timer = setTimeout(() => {
+        const move = findBestMove(board)
+        if (move !== -1) handleMove(move)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [board, xIsNext, mode])
 
-const Post = ({ post, user, onLike }) => {
-  const isLiked = post.likedBy?.includes(user?.uid) || false;
-  const [likes, setLikes] = useState(post.likes || 0);
-  const [localLiked, setLocalLiked] = useState(isLiked);
-
-  useEffect(() => setLocalLiked(isLiked), [isLiked]);
-  useEffect(() => setLikes(post.likes), [post.likes]);
-
-  const handleLike = () => {
-    if (!user) return;
-    setLocalLiked(!localLiked);
-    setLikes(localLiked ? likes - 1 : likes + 1);
-    onLike(post.id, user.uid, localLiked);
-  };
-
-  return (
-    <div className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all">
-      <div className="flex items-center space-x-4 mb-4">
-        <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center font-bold">
-          {post.author?.charAt(0) || 'U'}
-        </div>
-        <div>
-          <p className="font-bold text-lg text-zinc-900 dark:text-white">{post.author}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.authorId.slice(0, 8)}...</p>
-        </div>
-      </div>
-      <p className="text-zinc-800 dark:text-zinc-200 mb-4">{post.content}</p>
-      <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
-        <button onClick={handleLike} className={`hover:scale-125 ${localLiked ? 'text-red-500 scale-125' : ''}`}>
-          <Heart size={20} fill={localLiked ? 'currentColor' : 'none'} />
-        </button>
-        <span>{likes}</span>
-        <MessageCircle size={20} />
-        <span>0</span>
-      </div>
-    </div>
-  );
-};
-
-const PostModal = ({ onClose, user }) => {
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!content.trim()) return;
-    setLoading(true);
-    await addDoc(collection(db, 'posts'), {
-      author: "Usuario Anónimo",
-      authorId: user.uid,
-      content: content.trim(),
-      createdAt: serverTimestamp(),
-      likes: 0,
-      likedBy: [],
-    });
-    setContent('');
-    setLoading(false);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-lg relative">
-        <button onClick={onClose} className="absolute top-4 right-4"><X size={24} /></button>
-        <h2 className="text-2xl font-bold mb-6 text-center">Crear Publicación</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <textarea value={content} onChange={(e) => setContent(e.target.value)} className="w-full p-4 rounded-xl border h-40 resize-none" placeholder="¿Qué tienes en mente?..." />
-          <button type="submit" disabled={loading} className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600">
-            {loading ? 'Subiendo...' : 'Publicar'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-  const [darkMode, setDarkMode] = useState(false);
-  const [user, setUser] = useState(null);
-  const [showPostModal, setShowPostModal] = useState(false);
-  const [posts, setPosts] = useState([]);
+  function handleMove(index) {
+    if (board[index] || gameOver) return
+    const player = xIsNext ? 'X' : 'O'
+    const newBoard = board.slice()
+    newBoard[index] = player
+    setHistory(h => [...h, { board: board.slice(), xIsNext }])
+    setBoard(newBoard)
+    setXIsNext(!xIsNext)
+  }
 
   useEffect(() => {
-    onAuthStateChanged(auth, (authUser) => {
-      if (!authUser) signInAnonymously(auth);
-      else setUser(authUser);
-    });
-  }, []);
+    if (winner) {
+      setScores(s => ({ ...s, [winner]: s[winner] + 1 }))
+    } else if (board.every(Boolean)) {
+      setScores(s => ({ ...s, ties: s.ties + 1 }))
+    }
+  // we want to update score only when game becomes finished
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winner, board])
 
-  useEffect(() => {
-    const q = query(collection(db, 'posts'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsub();
-  }, []);
+  function resetBoard(full = false) {
+    setBoard(emptyBoard)
+    setXIsNext(true)
+    setHistory([])
+    if (full) setScores({ X: 0, O: 0, ties: 0 })
+  }
 
-  const handleLike = async (postId, userId, hasLiked) => {
-    const postRef = doc(db, 'posts', postId);
-    await updateDoc(postRef, {
-      likes: hasLiked ? posts.find(p => p.id === postId).likes - 1 : posts.find(p => p.id === postId).likes + 1,
-      likedBy: hasLiked ? arrayRemove(userId) : arrayUnion(userId)
-    });
-  };
+  function undo() {
+    const last = history[history.length - 1]
+    if (!last) return
+    setBoard(last.board)
+    setXIsNext(last.xIsNext)
+    setHistory(h => h.slice(0, -1))
+  }
+
+  function toggleMode() {
+    resetBoard()
+    setMode(m => (m === '1P' ? '2P' : '1P'))
+  }
 
   return (
-    <div className={`${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} min-h-screen`}>
-      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} />}
-      <Header onToggleTheme={() => setDarkMode(!darkMode)} user={user} darkMode={darkMode} />
-      <main className="mt-28 px-4 max-w-4xl mx-auto pb-24">
-        {user && (
-          <div className="flex justify-center mb-10">
-            <button onClick={() => setShowPostModal(true)} className={`${darkMode ? 'bg-white/20 text-white' : 'bg-zinc-800 text-white'} px-6 py-3 rounded-full`}>
-              <Plus className="h-6 w-6" /> Crear Publicación
-            </button>
-          </div>
-        )}
-        <div className={`${darkMode ? 'bg-black/30' : 'bg-white/50'} flex items-center p-4 rounded-full mb-10`}>
-          <Search className="mr-3" />
-          <input type="text" placeholder="Buscar publicaciones..." className="bg-transparent flex-1 outline-none" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-800 p-6">
+      <div className="w-full max-w-xl">
+        <div className="backdrop-blur-sm bg-white/6 border border-white/8 rounded-2xl p-6 shadow-2xl">
+          <header className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-white text-2xl font-semibold tracking-tight">tic tac toe</h1>
+              <p className="text-slate-300 text-sm">apple-ish • minimal • local play</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={toggleMode} className="px-3 py-1 rounded-full border border-white/10 text-sm text-slate-200 hover:bg-white/3">{mode}</button>
+              <button onClick={() => resetBoard(true)} className="px-3 py-1 rounded-full bg-white/5 text-sm text-slate-200 hover:bg-white/8">reset all</button>
+            </div>
+          </header>
+
+          <main className="flex gap-6">
+            <section className="flex-1">
+              <div className="grid grid-cols-3 gap-3">
+                {board.map((cell, i) => (
+                  <button
+                    key={i}
+                    aria-label={`cell-${i}`}
+                    onClick={() => handleMove(i)}
+                    className={`aspect-square rounded-xl flex items-center justify-center text-3xl font-bold transition transform focus:outline-none focus:ring-2 focus:ring-white/20
+                      ${cell ? 'cursor-default' : 'hover:scale-[1.02] hover:brightness-110'}
+                      ${winner && isWinningCell(winner, board, i) ? 'ring-2 ring-offset-2 ring-white/30' : ''}
+                      bg-gradient-to-b from-white/3 to-white/6 border border-white/6 text-white`}
+                  >
+                    <span className="select-none">{cell}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between text-sm text-slate-300">
+                <div>turn: <strong className="text-white">{gameOver ? '—' : xIsNext ? 'X' : 'O'}</strong></div>
+                <div className="flex gap-2">
+                  <button onClick={undo} className="px-3 py-1 rounded-md bg-white/4">undo</button>
+                  <button onClick={() => resetBoard(false)} className="px-3 py-1 rounded-md bg-white/4">new round</button>
+                </div>
+              </div>
+
+              <div className="mt-3 text-center text-slate-200">
+                {winner ? <div className="text-lg">ganador: <strong>{winner}</strong></div>
+                  : board.every(Boolean) ? <div className="text-lg">empate</div>
+                  : null}
+              </div>
+            </section>
+
+            <aside className="w-40 flex-shrink-0">
+              <div className="rounded-xl p-3 bg-white/4 border border-white/6">
+                <div className="text-xs text-slate-300">score</div>
+                <div className="mt-2 flex flex-col gap-2">
+                  <div className="flex justify-between"><span className="text-white">X</span><span className="text-slate-200">{scores.X}</span></div>
+                  <div className="flex justify-between"><span className="text-white">O</span><span className="text-slate-200">{scores.O}</span></div>
+                  <div className="flex justify-between"><span className="text-white">ties</span><span className="text-slate-200">{scores.ties}</span></div>
+                </div>
+                <div className="mt-3 text-xs text-slate-300">mode</div>
+                <div className="mt-1 flex gap-2">
+                  <button onClick={toggleMode} className="flex-1 py-1 rounded-md text-sm bg-white/5">{mode}</button>
+                </div>
+              </div>
+
+              <div className="mt-4 text-xs text-slate-300">
+                <div>accessible, keyboard friendly, responsive</div>
+              </div>
+            </aside>
+          </main>
         </div>
-        <div className="space-y-8">
-          {posts.map((post) => (
-            <Post key={post.id} post={post} user={user} onLike={handleLike} />
-          ))}
-        </div>
-      </main>
+      </div>
     </div>
-  );
+  )
 }
 
+
+// ---------- helpers ----------
+function calculateWinner(squares) {
+  const lines = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ]
+  for (const [a,b,c] of lines) {
+    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
+      return squares[a]
+    }
+  }
+  return null
+}
+
+function isWinningCell(winner, board, idx) {
+  if (!winner) return false
+  const lines = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ]
+  return lines.some(([a,b,c]) => [a,b,c].includes(idx) && board[a] && board[a] === board[b] && board[a] === board[c])
+}
+
+// Minimax for optimal CPU (O)
+function findBestMove(board) {
+  // prefer center, corners heuristically if board empty
+  if (board.every(v => v === null)) return 4
+
+  const player = 'O'
+  const opponent = 'X'
+
+  function minimax(boardState, isMax) {
+    const win = calculateWinner(boardState)
+    if (win === player) return { score: 10 }
+    if (win === opponent) return { score: -10 }
+    if (boardState.every(Boolean)) return { score: 0 }
+
+    const moves = []
+    for (let i = 0; i < 9; i++) {
+      if (!boardState[i]) {
+        const copy = boardState.slice()
+        copy[i] = isMax ? player : opponent
+        const result = minimax(copy, !isMax)
+        moves.push({ index: i, score: result.score })
+      }
+    }
+
+    if (isMax) {
+      let best = moves[0]
+      for (const m of moves) if (m.score > best.score) best = m
+      return best
+    } else {
+      let best = moves[0]
+      for (const m of moves) if (m.score < best.score) best = m
+      return best
+    }
+  }
+
+  const { index } = minimax(board.slice(), true)
+  return index ?? -1
+}
