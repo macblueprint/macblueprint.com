@@ -1,49 +1,539 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Apple Design</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-        Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      background: #fff;
-      color: #111;
-      margin: 20px;
-      line-height: 1.5;
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mac Blueprint</title>
+<style>
+  /* Reset */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background: linear-gradient(135deg, #e3eafc, #ffffff);
+    color: #111;
+    transition: background 0.5s ease;
+  }
+  body.dark {
+    background: linear-gradient(135deg, #1a1a1a, #111111);
+    color: #eee;
+  }
+  /* Frosted Tab Bar */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: rgba(255 255 255 / 0.3);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid rgba(255 255 255 / 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-radius: 0 0 16px 16px;
+    z-index: 1000;
+    transition: background 0.5s ease, border-color 0.5s ease;
+  }
+  body.dark header {
+    background: rgba(20 20 20 / 0.7);
+    border-bottom: 1px solid rgba(255 255 255 / 0.1);
+  }
+  .tab-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+  }
+  .tab-left img {
+    height: 32px;
+    width: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(0 0 0 / 0.1);
+    transition: border-color 0.3s ease;
+  }
+  body.dark .tab-left img {
+    border-color: rgba(255 255 255 / 0.3);
+  }
+  .tab-left img:hover {
+    border-color: #0071e3;
+    transform: scale(1.1);
+    transition: border-color 0.3s ease, transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  }
+  .tab-left span {
+    font-weight: 700;
+    font-size: 20px;
+    user-select: none;
+    color: inherit;
+  }
+  nav {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  button {
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 12px;
+    transition: background 0.3s ease, transform 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  button:hover {
+    background: rgba(0 113 227 / 0.15);
+    transform: scale(1.05);
+  }
+  button:active {
+    transform: scale(0.95);
+  }
+  /* Icons (inline SVG) */
+  svg.icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+  main {
+    margin-top: 80px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 20px 60px 20px;
+  }
+  /* Feed */
+  .feed {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .post {
+    background: rgba(255 255 255 / 0.85);
+    border-radius: 20px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    padding: 16px 20px;
+    color: #111;
+    transition: background 0.3s ease;
+    position: relative;
+  }
+  body.dark .post {
+    background: rgba(30 30 30 / 0.85);
+    color: #eee;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.7);
+  }
+  .post:hover {
+    background: rgba(0 113 227 / 0.1);
+  }
+  .post .author {
+    font-weight: 700;
+    margin-bottom: 6px;
+    user-select: none;
+  }
+  .post .date {
+    font-size: 12px;
+    color: #666;
+    user-select: none;
+  }
+  .post .content {
+    margin-top: 10px;
+    white-space: pre-wrap;
+  }
+  /* New post */
+  .new-post {
+    background: rgba(255 255 255 / 0.9);
+    border-radius: 20px;
+    padding: 14px 20px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+    transition: background 0.3s ease;
+  }
+  body.dark .new-post {
+    background: rgba(30 30 30 / 0.9);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.7);
+  }
+  textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 70px;
+    border-radius: 14px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.3s ease;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: #0071e3;
+  }
+  .post-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+  .post-actions button {
+    font-weight: 700;
+    background: #0071e3;
+    color: white;
+    padding: 8px 14px;
+  }
+  .post-actions button:disabled {
+    background: #8ab8ff;
+    cursor: not-allowed;
+  }
+  /* Modal */
+  .modal-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+  }
+  .modal-bg.active {
+    display: flex;
+  }
+  .modal {
+    background: white;
+    border-radius: 16px;
+    padding: 30px 25px;
+    max-width: 350px;
+    width: 100%;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+    animation: modalIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  body.dark .modal {
+    background: #222;
+    color: #eee;
+  }
+  @keyframes modalIn {
+    from {
+      opacity: 0;
+      transform: scale(0.85);
     }
-    header, footer {
-      text-align: center;
-      margin-bottom: 20px;
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
-    h1 {
-      color: #0071e3;
+  }
+  .modal h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-weight: 700;
+  }
+  .modal input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid #ccc;
+    margin-bottom: 20px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.3s ease;
+  }
+  .modal input:focus {
+    outline: none;
+    border-color: #0071e3;
+  }
+  .modal button {
+    width: 100%;
+    background: #0071e3;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .modal button:hover {
+    background: #005bb5;
+  }
+  /* Profile page */
+  .profile {
+    display: none;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .profile.active {
+    display: block;
+  }
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .profile-header img {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 2px solid #0071e3;
+    transition: border-color 0.3s ease;
+  }
+  .profile-header h1 {
+    margin: 0;
+    font-weight: 900;
+  }
+  .profile-section {
+    margin-bottom: 24px;
+  }
+  .profile-section h2 {
+    border-bottom: 2px solid #0071e3;
+    padding-bottom: 6px;
+    margin-bottom: 14px;
+  }
+  .profile-section p {
+    line-height: 1.4;
+  }
+  /* Buttons with icons */
+  .btn-icon {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* Footer */
+  footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 30px 10px 10px;
+    font-size: 13px;
+    color: #777;
+  }
+  body.dark footer {
+    color: #aaa;
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #0071e3;
+    border-radius: 4px;
+  }
+  /* Responsive */
+  @media (max-width: 480px) {
+    .profile-header {
+      flex-direction: column;
+      align-items: flex-start;
     }
-    h2 {
-      border-bottom: 2px solid #0071e3;
-      padding-bottom: 5px;
-    }
-  </style>
+  }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Welcome to My Apple Design</h1>
-    <p>Crafting sleek Apple concepts & minimal designs</p>
-  </header>
-
-  <section>
-    <h2>About Me</h2>
-    <p>I create daily Apple-inspired UI/UX concepts and designs.</p>
+<header>
+  <div class="tab-left" id="logo">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="Logo" />
+    <span>Mac Blueprint</span>
+  </div>
+  <nav>
+    <button id="contactBtn" class="btn-icon" aria-label="Contact">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M21 8V7l-3 2-2-2-6 6 3 3 6-6zM4 20h12v-2H4v2zm0-6h7v-2H4v2zm0-4h7V8H4v2z"/></svg>
+      Contactar
+    </button>
+    <button id="themeToggle" aria-label="Toggle Dark Mode" title="Toggle Dark Mode" class="btn-icon">
+      <svg class="icon" viewBox="0 0 24 24" id="themeIcon"><path d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/></svg>
+      Dark Mode
+    </button>
+    <button id="loginBtn" class="btn-icon" aria-label="Login">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M16 17l5-5-5-5v3H9v4h7v3zm-6 1v-2H5v-2h5v-2H5v-2h5V6l6 6-6 6z"/></svg>
+      Log In
+    </button>
+  </nav>
+</header>
+<main>
+  <section class="new-post" aria-label="Create new post">
+    <textarea id="postContent" placeholder="What's new? Apple news, your updates..." aria-required="true"></textarea>
+    <div class="post-actions">
+      <button id="submitPost" disabled>Post</button>
+    </div>
   </section>
+  <section class="feed" aria-live="polite" aria-label="Feed posts"></section>
 
-  <section>
-    <h2>Portfolio</h2>
-    <p>Coming soon...</p>
+  <section class="profile" id="profilePage" tabindex="-1">
+    <div class="profile-header">
+      <img src="https://pbs.twimg.com/profile_images/1335653043957707009/4ZR-hRXq_400x400.jpg" alt="Admin Photo" />
+      <h1>Admin - Mac Blueprint</h1>
+    </div>
+    <div class="profile-section">
+      <h2>About Me</h2>
+      <p>Designer & Apple enthusiast creating sleek UI/UX concepts inspired by Apple’s minimalism. Passionate about tech, innovation and design culture.</p>
+    </div>
+    <div class="profile-section">
+      <h2>Contact</h2>
+      <p>Email: admin@macblueprint.com</p>
+      <p>Twitter: @MacBlueprint</p>
+    </div>
+    <div class="profile-section">
+      <h2>FAQs</h2>
+      <p><strong>Q:</strong> Can I submit posts? <br /> <strong>A:</strong> Yes, but you need to log in first and posts are moderated.</p>
+      <p><strong>Q:</strong> How often do you post? <br /> <strong>A:</strong> Daily updates on Apple and design concepts.</p>
+    </div>
+    <div class="profile-section">
+      <h2>Explore</h2>
+      <p>Check out the latest Apple news, design trends and community discussions.</p>
+    </div>
+    <div class="profile-section">
+      <h2>Site Activity</h2>
+      <p>All posts and interactions are displayed in the feed.</p>
+    </div>
   </section>
+</main>
 
-  <footer>
-    <p>Contact me: your-email@example.com</p>
-  </footer>
+<div class="modal-bg" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal">
+    <h2 id="loginTitle">Log In</h2>
+    <input type="text" id="username" placeholder="Enter your username" aria-label="Username" />
+    <button id="loginSubmit" disabled>Log In</button>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const body = document.body
+    const themeToggle = document.getElementById('themeToggle')
+    const themeIcon = document.getElementById('themeIcon')
+    const loginBtn = document.getElementById('loginBtn')
+    const loginModal = document.getElementById('loginModal')
+    const loginSubmit = document.getElementById('loginSubmit')
+    const usernameInput = document.getElementById('username')
+    const postContent = document.getElementById('postContent')
+    const submitPost = document.getElementById('submitPost')
+    const feed = document.querySelector('.feed')
+    const logo = document.getElementById('logo')
+    const profilePage = document.getElementById('profilePage')
+    const newPostSection = document.querySelector('.new-post')
+
+    // State
+    let loggedInUser = null
+    let posts = JSON.parse(localStorage.getItem('macblueprint-posts') || '[]')
+
+    // Utility: bad words filter (basic)
+    const badWords = ['badword1', 'badword2', 'idiot', 'stupid']
+    function isClean(text) {
+      const lower = text.toLowerCase()
+      return !badWords.some(word => lower.includes(word))
+    }
+
+    // Render posts
+    function renderPosts() {
+      feed.innerHTML = ''
+      posts.slice().reverse().forEach(post => {
+        const postEl = document.createElement('article')
+        postEl.className = 'post'
+        postEl.tabIndex = 0
+        postEl.innerHTML = `
+          <div class="author">${post.author}</div>
+          <div class="date">${new Date(post.date).toLocaleString()}</div>
+          <div class="content">${post.content}</div>
+        `
+        feed.appendChild(postEl)
+      })
+    }
+
+    // Toggle theme
+    function updateTheme() {
+      if (body.classList.contains('dark')) {
+        themeIcon.innerHTML = '<path d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/>'
+        themeToggle.textContent = 'Light Mode'
+        themeToggle.prepend(themeIcon)
+      } else {
+        themeIcon.innerHTML = '<path d="M12 3a9 9 0 0 1 0 18 9 9 0 0 0 0-18z"/>'
+        themeToggle.textContent = 'Dark Mode'
+        themeToggle.prepend(themeIcon)
+      }
+    }
+
+    // Initial theme update
+    updateTheme()
+
+    // Toggle dark mode
+    themeToggle.onclick = () => {
+      body.classList.toggle('dark')
+      updateTheme()
+    }
+
+    // Open login modal
+    loginBtn.onclick = () => {
+      loginModal.classList.add('active')
+      usernameInput.focus()
+    }
+
+    // Close modal on click outside
+    loginModal.onclick = e => {
+      if (e.target === loginModal) {
+        loginModal.classList.remove('active')
+      }
+    }
+
+    // Enable login button only if input not empty
+    usernameInput.oninput = () => {
+      loginSubmit.disabled = usernameInput.value.trim().length === 0
+    }
+
+    // Login submit
+    loginSubmit.onclick = () => {
+      loggedInUser = usernameInput.value.trim()
+      loginModal.classList.remove('active')
+      loginBtn.textContent = `Hi, ${loggedInUser}`
+      usernameInput.value = ''
+      loginSubmit.disabled = true
+      postContent.disabled = false
+      submitPost.disabled = true
+    }
+
+    // Enable post button only if content and logged in
+    postContent.oninput = () => {
+      submitPost.disabled = !(postContent.value.trim().length > 0 && loggedInUser)
+    }
+
+    // Submit post
+    submitPost.onclick = () => {
+      const content = postContent.value.trim()
+      if (!isClean(content)) {
+        alert('Your post contains inappropriate language')
+        return
+      }
+      posts.push({
+        author: loggedInUser,
+        content,
+        date: new Date().toISOString()
+      })
+      localStorage.setItem('macblueprint-posts', JSON.stringify(posts))
+      renderPosts()
+      postContent.value = ''
+      submitPost.disabled = true
+    }
+
+    // Logo click - show profile
+    logo.onclick = () => {
+      main.querySelector('.feed').style.display = 'none'
+      newPostSection.style.display = 'none'
+      profilePage.classList.add('active')
+    }
+
+    // Clicking outside profile hides it and shows feed
+    profilePage.onclick = e => {
+      if (e.target === profilePage) {
+        profilePage.classList.remove('active')
+        main.querySelector('.feed').style.display = 'flex'
+        newPostSection.style.display = 'block'
+      }
+    }
+
+    // Initial render
+    renderPosts()
+    postContent.disabled = true
+  })()
+</script>
 </body>
 </html>
+
