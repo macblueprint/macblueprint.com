@@ -20,16 +20,31 @@ import {
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import {
+  getFirestore,
+  collection,
+  query,
+  onSnapshot,
+  addDoc,
+  doc,
+  updateDoc,
+  orderBy
+} from 'firebase/firestore';
 
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// Componente del encabezado (Header)
 const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    // Contenedor principal con efecto de vidrio esmerilado, bordes redondeados y sombra suave.
     <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
       <div className={`backdrop-filter backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all duration-300 ease-in-out`}>
         <nav className="flex items-center justify-between">
-          {/* Logo y nombre de la app - navega al perfil del admin */}
           <div
             className="flex items-center space-x-2 cursor-pointer p-2 md:p-3 transition-transform duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10 rounded-full"
             onClick={() => onNavigate('profile')}
@@ -40,7 +55,6 @@ const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => 
             </h1>
           </div>
 
-          {/* Botones de navegación principales */}
           <div className="hidden md:flex flex-1 justify-center space-x-6 text-white text-sm font-medium">
             <button
               onClick={() => onNavigate('feed')}
@@ -55,7 +69,6 @@ const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => 
             </button>
           </div>
 
-          {/* Menú de opciones de usuario y tema */}
           <div className="flex items-center space-x-2 p-2 md:p-3">
             <button
               onClick={onToggleTheme}
@@ -107,12 +120,14 @@ const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => 
   );
 };
 
-const Post = ({ post, user }) => {
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(post.likes);
+// Componente de una publicación (Post)
+const Post = ({ post, user, onLike }) => {
+  const [liked, setLiked] = useState(post.likedBy?.includes(user?.uid) || false);
+  const [likes, setLikes] = useState(post.likes || 0);
 
   const handleLike = () => {
     if (user) {
+      onLike(post.id, user.uid, liked);
       setLiked(!liked);
       setLikes(liked ? likes - 1 : likes + 1);
     }
@@ -122,17 +137,15 @@ const Post = ({ post, user }) => {
     <div
       className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-500 ease-in-out transform hover:-translate-y-2 hover:shadow-2xl animate-fade-in-up"
     >
-      {/* Encabezado del post con avatar y nombre de usuario */}
       <div className="flex items-center space-x-4 mb-4">
         <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center text-lg font-bold">
-          {post.author.charAt(0)}
+          {post.author?.charAt(0) || 'U'}
         </div>
         <div>
           <p className="font-bold text-lg text-zinc-900 dark:text-white">{post.author}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.author.toLowerCase().replace(' ', '')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.author?.toLowerCase().replace(' ', '') || 'usuario'}</p>
         </div>
       </div>
-      {/* Contenido del post */}
       <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{post.content}</p>
       {post.image && (
         <img
@@ -141,7 +154,6 @@ const Post = ({ post, user }) => {
           className="w-full rounded-2xl mb-4 max-h-96 object-cover"
         />
       )}
-      {/* Botones de interacción */}
       <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
         <div className="flex items-center space-x-2">
           <button
@@ -154,17 +166,17 @@ const Post = ({ post, user }) => {
         </div>
         <div className="flex items-center space-x-2">
           <MessageCircle size={20} />
-          <span className="text-sm">{post.comments}</span>
+          <span className="text-sm">{post.comments || 0}</span>
         </div>
       </div>
     </div>
   );
 };
 
-const Feed = ({ posts, user, onNewPost, darkMode }) => {
+// Componente del feed principal
+const Feed = ({ posts, user, onNewPost, darkMode, onLike }) => {
   return (
     <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
-      {/* Botón para crear nueva publicación */}
       {user && (
         <div className="flex justify-center mb-10">
           <button
@@ -177,7 +189,6 @@ const Feed = ({ posts, user, onNewPost, darkMode }) => {
           </button>
         </div>
       )}
-      {/* Búsqueda */}
       <div className={`flex items-center p-4 rounded-full mb-10 shadow-lg border border-white/20 transition-all duration-300 ease-in-out
         ${darkMode ? 'bg-black/30' : 'bg-white/50'}`}>
         <Search className="text-gray-500 dark:text-gray-400 mr-3" />
@@ -188,17 +199,17 @@ const Feed = ({ posts, user, onNewPost, darkMode }) => {
         />
       </div>
 
-      {/* Lista de publicaciones */}
       <div className="space-y-8">
         {posts.map((post) => (
-          <Post key={post.id} post={post} user={user} />
+          <Post key={post.id} post={post} user={user} onLike={onLike} />
         ))}
       </div>
     </main>
   );
 };
 
-const Profile = ({ user, onNavigate, darkMode }) => {
+// Componente de la página de perfil
+const Profile = ({ user, darkMode }) => {
   const [activeSection, setActiveSection] = useState('about');
   const [faqsOpen, setFaqsOpen] = useState({});
 
@@ -209,15 +220,11 @@ const Profile = ({ user, onNavigate, darkMode }) => {
   ];
 
   const handleFaqClick = (index) => {
-    setFaqsOpen(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
+    setFaqsOpen(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
   return (
     <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
-      {/* Tarjeta de perfil principal */}
       <div className={`p-8 rounded-3xl shadow-xl transition-all duration-300
         ${darkMode ? 'bg-black/30 text-white' : 'bg-white/50 text-zinc-900'}`}
       >
@@ -233,8 +240,11 @@ const Profile = ({ user, onNavigate, darkMode }) => {
             <Phone size={20} className="hover:text-blue-500 transition-colors" />
           </div>
         </div>
-
-        {/* Navegación del perfil */}
+        {user && (
+          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mb-4">
+            ID de usuario: {user.uid}
+          </p>
+        )}
         <div className={`flex justify-center flex-wrap gap-2 md:gap-4 mb-8 p-2 rounded-full border border-white/20 transition-all duration-300
           ${darkMode ? 'bg-black/20' : 'bg-white/50'}`}>
           <button
@@ -260,7 +270,6 @@ const Profile = ({ user, onNavigate, darkMode }) => {
           </button>
         </div>
 
-        {/* Contenido de la sección activa */}
         <div className="space-y-8">
           {activeSection === 'about' && (
             <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
@@ -316,14 +325,15 @@ const Profile = ({ user, onNavigate, darkMode }) => {
   );
 };
 
+// Componente del modal para iniciar sesión
 const LoginModal = ({ onClose, onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Simulación de inicio de sesión
     if (email && password) {
+      // Simulación de inicio de sesión
       onLogin({ id: '1', name: 'Usuario' });
       onClose();
     }
@@ -372,27 +382,33 @@ const LoginModal = ({ onClose, onLogin }) => {
   );
 };
 
-const PostModal = ({ onClose, onNewPost }) => {
+// Componente del modal para crear una publicación
+const PostModal = ({ onClose, user, db, postsCollectionRef }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (content.trim()) {
+    if (content.trim() && user && db) {
       setLoading(true);
-      setTimeout(() => {
-        const newPost = {
-          id: Math.random(),
-          author: 'Usuario',
-          content: content,
+      try {
+        await addDoc(postsCollectionRef, {
+          author: user.name,
+          authorId: user.uid,
+          content: content.trim(),
+          createdAt: new Date(),
           likes: 0,
+          likedBy: [],
           comments: 0,
           image: null,
-        };
-        onNewPost(newPost);
-        setLoading(false);
+        });
+        setContent('');
         onClose();
-      }, 1000); // Simula el tiempo de carga y moderación
+      } catch (e) {
+        console.error("Error adding document: ", e);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -431,44 +447,81 @@ const PostModal = ({ onClose, onNewPost }) => {
   );
 };
 
+// Componente principal de la aplicación
 const App = () => {
   const [currentPage, setCurrentPage] = useState('feed');
   const [darkMode, setDarkMode] = useState(false);
-  const [user, setUser] = useState(null); // Estado de autenticación
+  const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      author: 'Mac Blueprint',
-      content: '¡Bienvenido a Mac Blueprint! Este es un espacio para todos los entusiastas de Apple. Comparte tus ideas, preguntas y lo último sobre tecnología.',
-      likes: 12,
-      comments: 5,
-      image: 'https://placehold.co/800x450/2563eb/ffffff?text=Nuevo+MacBook+Pro',
-    },
-    {
-      id: 2,
-      author: 'Mac Blueprint',
-      content: 'Análisis a fondo: ¿Vale la pena actualizar a iOS 19? Exploramos las nuevas funciones de IA y la optimización de batería.',
-      likes: 24,
-      comments: 8,
-      image: null,
-    },
-  ]);
+  const [posts, setPosts] = useState([]);
+  const [firebase, setFirebase] = useState({ db: null, auth: null, postsCollectionRef: null });
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    // Si el usuario ya está autenticado, podría haber un estado inicial aquí.
-    // Por ahora, simulamos que el admin siempre está logueado.
-    setUser({ id: 'admin', name: 'Mac Blueprint Admin' });
+    // Inicializar Firebase
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      const postsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+      setFirebase({ db, auth, postsCollectionRef });
+
+      // Autenticar al usuario
+      onAuthStateChanged(auth, async (authUser) => {
+        if (authUser) {
+          // Si el usuario ya está autenticado, establecer su información
+          setUser(authUser);
+        } else {
+          // Si no, intentar iniciar sesión con el token personalizado o de forma anónima
+          try {
+            if (initialAuthToken) {
+              await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+              await signInAnonymously(auth);
+            }
+          } catch (error) {
+            console.error('Error during Firebase authentication:', error);
+          }
+        }
+        setIsAuthReady(true);
+      });
+    } catch (e) {
+      console.error("Error initializing Firebase:", e);
+    }
   }, []);
 
-  const handleLogin = (userInfo) => {
-    setUser(userInfo);
-    setShowLogin(false);
-  };
+  useEffect(() => {
+    // Sincronizar posts con Firestore una vez que la autenticación esté lista
+    if (isAuthReady && firebase.db) {
+      const q = query(firebase.postsCollectionRef);
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const postsData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setPosts(postsData);
+      });
 
-  const handleNewPost = (newPost) => {
-    setPosts([newPost, ...posts]);
+      return () => unsubscribe();
+    }
+  }, [isAuthReady, firebase.db, firebase.postsCollectionRef]);
+
+  const handleLike = async (postId, userId, hasLiked) => {
+    if (!firebase.db) return;
+
+    const postRef = doc(firebase.db, 'artifacts', appId, 'public', 'data', 'posts', postId);
+    const newLikesCount = hasLiked ? firebase.db.FieldValue.increment(-1) : firebase.db.FieldValue.increment(1);
+    const newLikedBy = hasLiked
+      ? firebase.db.FieldValue.arrayRemove(userId)
+      : firebase.db.FieldValue.arrayUnion(userId);
+
+    try {
+      // Simula la actualización en el servidor
+      console.log('Update post likes and likedBy: ', postId);
+    } catch (error) {
+      console.error('Error updating likes:', error);
+    }
   };
 
   const toggleTheme = () => {
@@ -477,7 +530,6 @@ const App = () => {
 
   return (
     <div className={`min-h-screen font-sans ${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} transition-colors duration-500`}>
-      {/* Estilos para animaciones personalizadas */}
       <style jsx>{`
         @keyframes fade-in-up {
           from {
@@ -504,7 +556,7 @@ const App = () => {
           }
         }
         .animate-fade-in-up {
-          animation: fade-in-up 0.5s ease-out forwards;
+          animation: fade-in-up 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out forwards;
@@ -514,8 +566,8 @@ const App = () => {
         }
       `}</style>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />}
-      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} onNewPost={handleNewPost} />}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={(u) => setUser(u)} />}
+      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} postsCollectionRef={firebase.postsCollectionRef} />}
 
       <Header
         onNavigate={setCurrentPage}
@@ -532,12 +584,12 @@ const App = () => {
             user={user}
             onNewPost={() => setShowPostModal(true)}
             darkMode={darkMode}
+            onLike={handleLike}
           />
         )}
         {currentPage === 'profile' && (
           <Profile
             user={user}
-            onNavigate={setCurrentPage}
             darkMode={darkMode}
           />
         )}
@@ -546,13 +598,11 @@ const App = () => {
   );
 };
 
-// Asegúrate de que el contenedor root exista en tu HTML, por ejemplo: <div id="root"></div>
 const container = document.getElementById('root');
 const root = createRoot(container);
 root.render(<App />);
 
 // Opciones de configuración de Tailwind para este componente
-// Nota: En una configuración real, esto estaría en un archivo tailwind.config.js
 tailwind.config = {
   theme: {
     extend: {
