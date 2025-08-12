@@ -1,539 +1,566 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mac Blueprint</title>
-<style>
-  /* Reset */
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0; padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-    background: linear-gradient(135deg, #e3eafc, #ffffff);
-    color: #111;
-    transition: background 0.5s ease;
-  }
-  body.dark {
-    background: linear-gradient(135deg, #1a1a1a, #111111);
-    color: #eee;
-  }
-  /* Frosted Tab Bar */
-  header {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 60px;
-    background: rgba(255 255 255 / 0.3);
-    backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid rgba(255 255 255 / 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    border-radius: 0 0 16px 16px;
-    z-index: 1000;
-    transition: background 0.5s ease, border-color 0.5s ease;
-  }
-  body.dark header {
-    background: rgba(20 20 20 / 0.7);
-    border-bottom: 1px solid rgba(255 255 255 / 0.1);
-  }
-  .tab-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-  }
-  .tab-left img {
-    height: 32px;
-    width: 32px;
-    border-radius: 50%;
-    border: 1px solid rgba(0 0 0 / 0.1);
-    transition: border-color 0.3s ease;
-  }
-  body.dark .tab-left img {
-    border-color: rgba(255 255 255 / 0.3);
-  }
-  .tab-left img:hover {
-    border-color: #0071e3;
-    transform: scale(1.1);
-    transition: border-color 0.3s ease, transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  }
-  .tab-left span {
-    font-weight: 700;
-    font-size: 20px;
-    user-select: none;
-    color: inherit;
-  }
-  nav {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-  }
-  button {
-    background: transparent;
-    border: none;
-    color: inherit;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 12px;
-    transition: background 0.3s ease, transform 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  button:hover {
-    background: rgba(0 113 227 / 0.15);
-    transform: scale(1.05);
-  }
-  button:active {
-    transform: scale(0.95);
-  }
-  /* Icons (inline SVG) */
-  svg.icon {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-  }
-  main {
-    margin-top: 80px;
-    max-width: 700px;
-    margin-left: auto;
-    margin-right: auto;
-    padding: 0 20px 60px 20px;
-  }
-  /* Feed */
-  .feed {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .post {
-    background: rgba(255 255 255 / 0.85);
-    border-radius: 20px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-    padding: 16px 20px;
-    color: #111;
-    transition: background 0.3s ease;
-    position: relative;
-  }
-  body.dark .post {
-    background: rgba(30 30 30 / 0.85);
-    color: #eee;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.7);
-  }
-  .post:hover {
-    background: rgba(0 113 227 / 0.1);
-  }
-  .post .author {
-    font-weight: 700;
-    margin-bottom: 6px;
-    user-select: none;
-  }
-  .post .date {
-    font-size: 12px;
-    color: #666;
-    user-select: none;
-  }
-  .post .content {
-    margin-top: 10px;
-    white-space: pre-wrap;
-  }
-  /* New post */
-  .new-post {
-    background: rgba(255 255 255 / 0.9);
-    border-radius: 20px;
-    padding: 14px 20px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.05);
-    margin-bottom: 30px;
-    transition: background 0.3s ease;
-  }
-  body.dark .new-post {
-    background: rgba(30 30 30 / 0.9);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.7);
-  }
-  textarea {
-    width: 100%;
-    resize: vertical;
-    min-height: 70px;
-    border-radius: 14px;
-    border: 1px solid #ccc;
-    padding: 10px;
-    font-size: 14px;
-    font-family: inherit;
-    transition: border-color 0.3s ease;
-  }
-  textarea:focus {
-    outline: none;
-    border-color: #0071e3;
-  }
-  .post-actions {
-    margin-top: 10px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-  }
-  .post-actions button {
-    font-weight: 700;
-    background: #0071e3;
-    color: white;
-    padding: 8px 14px;
-  }
-  .post-actions button:disabled {
-    background: #8ab8ff;
-    cursor: not-allowed;
-  }
-  /* Modal */
-  .modal-bg {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 1100;
-  }
-  .modal-bg.active {
-    display: flex;
-  }
-  .modal {
-    background: white;
-    border-radius: 16px;
-    padding: 30px 25px;
-    max-width: 350px;
-    width: 100%;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-    animation: modalIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  body.dark .modal {
-    background: #222;
-    color: #eee;
-  }
-  @keyframes modalIn {
-    from {
-      opacity: 0;
-      transform: scale(0.85);
+import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Apple,
+  Moon,
+  Sun,
+  User,
+  MessageCircle,
+  Heart,
+  Plus,
+  Send,
+  X,
+  Search,
+  Mail,
+  Phone,
+  MessageSquare,
+  Link,
+  Info,
+  Activity,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
+
+const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    // Contenedor principal con efecto de vidrio esmerilado, bordes redondeados y sombra suave.
+    <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
+      <div className={`backdrop-filter backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all duration-300 ease-in-out`}>
+        <nav className="flex items-center justify-between">
+          {/* Logo y nombre de la app - navega al perfil del admin */}
+          <div
+            className="flex items-center space-x-2 cursor-pointer p-2 md:p-3 transition-transform duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10 rounded-full"
+            onClick={() => onNavigate('profile')}
+          >
+            <Apple className="h-6 w-6 text-white" />
+            <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">
+              Mac Blueprint
+            </h1>
+          </div>
+
+          {/* Botones de navegación principales */}
+          <div className="hidden md:flex flex-1 justify-center space-x-6 text-white text-sm font-medium">
+            <button
+              onClick={() => onNavigate('feed')}
+              className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110"
+            >
+              Feed
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+            </button>
+            <button className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110">
+              Contactar
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+            </button>
+          </div>
+
+          {/* Menú de opciones de usuario y tema */}
+          <div className="flex items-center space-x-2 p-2 md:p-3">
+            <button
+              onClick={onToggleTheme}
+              className="p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
+            >
+              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            {user ? (
+              <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out hover:scale-105">
+                <User className="h-5 w-5" />
+                <span className="hidden sm:inline-block text-sm">{user.name}</span>
+              </div>
+            ) : (
+              <button
+                onClick={onLoginClick}
+                className="flex items-center space-x-2 p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10"
+              >
+                <User className="h-5 w-5" />
+                <span className="hidden sm:inline-block text-sm">Log in</span>
+              </button>
+            )}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="md:hidden p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+          </div>
+        </nav>
+      </div>
+      {menuOpen && (
+        <div className="md:hidden absolute top-full mt-2 w-full backdrop-filter backdrop-blur-2xl bg-white/30 dark:bg-black/30 rounded-xl shadow-xl border-white/20 border-2 p-4 animate-fade-in-down transition-all duration-300">
+          <button
+            onClick={() => { onNavigate('feed'); setMenuOpen(false); }}
+            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
+          >
+            Feed
+          </button>
+          <button
+            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
+          >
+            Contactar
+          </button>
+        </div>
+      )}
+    </header>
+  );
+};
+
+const Post = ({ post, user }) => {
+  const [liked, setLiked] = useState(false);
+  const [likes, setLikes] = useState(post.likes);
+
+  const handleLike = () => {
+    if (user) {
+      setLiked(!liked);
+      setLikes(liked ? likes - 1 : likes + 1);
     }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-  .modal h2 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-weight: 700;
-  }
-  .modal input {
-    width: 100%;
-    padding: 10px;
-    border-radius: 14px;
-    border: 1px solid #ccc;
-    margin-bottom: 20px;
-    font-size: 14px;
-    font-family: inherit;
-    transition: border-color 0.3s ease;
-  }
-  .modal input:focus {
-    outline: none;
-    border-color: #0071e3;
-  }
-  .modal button {
-    width: 100%;
-    background: #0071e3;
-    color: white;
-    border: none;
-    padding: 10px;
-    border-radius: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.3s ease;
-  }
-  .modal button:hover {
-    background: #005bb5;
-  }
-  /* Profile page */
-  .profile {
-    display: none;
-    max-width: 700px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-  .profile.active {
-    display: block;
-  }
-  .profile-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .profile-header img {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 2px solid #0071e3;
-    transition: border-color 0.3s ease;
-  }
-  .profile-header h1 {
-    margin: 0;
-    font-weight: 900;
-  }
-  .profile-section {
-    margin-bottom: 24px;
-  }
-  .profile-section h2 {
-    border-bottom: 2px solid #0071e3;
-    padding-bottom: 6px;
-    margin-bottom: 14px;
-  }
-  .profile-section p {
-    line-height: 1.4;
-  }
-  /* Buttons with icons */
-  .btn-icon {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  /* Footer */
-  footer {
-    text-align: center;
-    margin-top: 40px;
-    padding: 30px 10px 10px;
-    font-size: 13px;
-    color: #777;
-  }
-  body.dark footer {
-    color: #aaa;
-  }
-  /* Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #0071e3;
-    border-radius: 4px;
-  }
-  /* Responsive */
-  @media (max-width: 480px) {
-    .profile-header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-  }
-</style>
-</head>
-<body>
-<header>
-  <div class="tab-left" id="logo">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="Logo" />
-    <span>Mac Blueprint</span>
-  </div>
-  <nav>
-    <button id="contactBtn" class="btn-icon" aria-label="Contact">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M21 8V7l-3 2-2-2-6 6 3 3 6-6zM4 20h12v-2H4v2zm0-6h7v-2H4v2zm0-4h7V8H4v2z"/></svg>
-      Contactar
-    </button>
-    <button id="themeToggle" aria-label="Toggle Dark Mode" title="Toggle Dark Mode" class="btn-icon">
-      <svg class="icon" viewBox="0 0 24 24" id="themeIcon"><path d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/></svg>
-      Dark Mode
-    </button>
-    <button id="loginBtn" class="btn-icon" aria-label="Login">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M16 17l5-5-5-5v3H9v4h7v3zm-6 1v-2H5v-2h5v-2H5v-2h5V6l6 6-6 6z"/></svg>
-      Log In
-    </button>
-  </nav>
-</header>
-<main>
-  <section class="new-post" aria-label="Create new post">
-    <textarea id="postContent" placeholder="What's new? Apple news, your updates..." aria-required="true"></textarea>
-    <div class="post-actions">
-      <button id="submitPost" disabled>Post</button>
+  };
+
+  return (
+    <div
+      className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-500 ease-in-out transform hover:-translate-y-2 hover:shadow-2xl animate-fade-in-up"
+    >
+      {/* Encabezado del post con avatar y nombre de usuario */}
+      <div className="flex items-center space-x-4 mb-4">
+        <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center text-lg font-bold">
+          {post.author.charAt(0)}
+        </div>
+        <div>
+          <p className="font-bold text-lg text-zinc-900 dark:text-white">{post.author}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.author.toLowerCase().replace(' ', '')}</p>
+        </div>
+      </div>
+      {/* Contenido del post */}
+      <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{post.content}</p>
+      {post.image && (
+        <img
+          src={post.image}
+          alt="Post media"
+          className="w-full rounded-2xl mb-4 max-h-96 object-cover"
+        />
+      )}
+      {/* Botones de interacción */}
+      <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleLike}
+            className={`transition-all duration-300 ease-in-out transform hover:scale-125 hover:text-red-500 ${liked ? 'text-red-500 scale-125' : ''}`}
+          >
+            <Heart size={20} fill={liked ? 'currentColor' : 'none'} />
+          </button>
+          <span className="text-sm">{likes}</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <MessageCircle size={20} />
+          <span className="text-sm">{post.comments}</span>
+        </div>
+      </div>
     </div>
-  </section>
-  <section class="feed" aria-live="polite" aria-label="Feed posts"></section>
+  );
+};
 
-  <section class="profile" id="profilePage" tabindex="-1">
-    <div class="profile-header">
-      <img src="https://pbs.twimg.com/profile_images/1335653043957707009/4ZR-hRXq_400x400.jpg" alt="Admin Photo" />
-      <h1>Admin - Mac Blueprint</h1>
+const Feed = ({ posts, user, onNewPost, darkMode }) => {
+  return (
+    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
+      {/* Botón para crear nueva publicación */}
+      {user && (
+        <div className="flex justify-center mb-10">
+          <button
+            onClick={onNewPost}
+            className={`flex items-center space-x-2 px-6 py-3 rounded-full text-lg font-medium transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50
+              ${darkMode ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-zinc-800 text-white hover:bg-black'}`}
+          >
+            <Plus className="h-6 w-6" />
+            <span>Crear Publicación</span>
+          </button>
+        </div>
+      )}
+      {/* Búsqueda */}
+      <div className={`flex items-center p-4 rounded-full mb-10 shadow-lg border border-white/20 transition-all duration-300 ease-in-out
+        ${darkMode ? 'bg-black/30' : 'bg-white/50'}`}>
+        <Search className="text-gray-500 dark:text-gray-400 mr-3" />
+        <input
+          type="text"
+          placeholder="Buscar publicaciones..."
+          className={`flex-1 bg-transparent border-none outline-none text-zinc-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-lg`}
+        />
+      </div>
+
+      {/* Lista de publicaciones */}
+      <div className="space-y-8">
+        {posts.map((post) => (
+          <Post key={post.id} post={post} user={user} />
+        ))}
+      </div>
+    </main>
+  );
+};
+
+const Profile = ({ user, onNavigate, darkMode }) => {
+  const [activeSection, setActiveSection] = useState('about');
+  const [faqsOpen, setFaqsOpen] = useState({});
+
+  const faqs = [
+    { question: '¿Cómo puedo subir una publicación?', answer: 'Primero debes iniciar sesión. Una vez que lo hagas, aparecerá un botón en el feed principal para crear una nueva publicación.' },
+    { question: '¿Cómo se moderan los posts?', answer: 'Todas las publicaciones de los usuarios pasan por un filtro de moderación antes de ser visibles en el feed. Como administrador, reviso y apruebo cada post para mantener la calidad y el enfoque de la comunidad.' },
+    { question: '¿Qué tipo de noticias se publican aquí?', answer: 'Principalmente noticias sobre Apple, lanzamientos de productos, actualizaciones de software y análisis del mercado tecnológico. También comparto mis propios comunicados y opiniones.' },
+  ];
+
+  const handleFaqClick = (index) => {
+    setFaqsOpen(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  return (
+    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
+      {/* Tarjeta de perfil principal */}
+      <div className={`p-8 rounded-3xl shadow-xl transition-all duration-300
+        ${darkMode ? 'bg-black/30 text-white' : 'bg-white/50 text-zinc-900'}`}
+      >
+        <div className="flex flex-col items-center mb-6">
+          <div className="h-24 w-24 bg-gray-200 dark:bg-zinc-700 rounded-full mb-4 flex items-center justify-center text-5xl font-bold">
+            M
+          </div>
+          <h2 className="text-3xl font-bold">Mac Blueprint</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Administrador y Fundador</p>
+          <div className="flex space-x-4 mt-4 text-gray-500 dark:text-gray-400">
+            <Mail size={20} className="hover:text-blue-500 transition-colors" />
+            <Link size={20} className="hover:text-blue-500 transition-colors" />
+            <Phone size={20} className="hover:text-blue-500 transition-colors" />
+          </div>
+        </div>
+
+        {/* Navegación del perfil */}
+        <div className={`flex justify-center flex-wrap gap-2 md:gap-4 mb-8 p-2 rounded-full border border-white/20 transition-all duration-300
+          ${darkMode ? 'bg-black/20' : 'bg-white/50'}`}>
+          <button
+            onClick={() => setActiveSection('about')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'about' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            Sobre Mí
+          </button>
+          <button
+            onClick={() => setActiveSection('faqs')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'faqs' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            FAQs
+          </button>
+          <button
+            onClick={() => setActiveSection('activity')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'activity' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            Actividad
+          </button>
+        </div>
+
+        {/* Contenido de la sección activa */}
+        <div className="space-y-8">
+          {activeSection === 'about' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <Info size={20} className="mr-2 text-blue-500" />
+                Presentación
+              </h3>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                Hola, soy el fundador de Mac Blueprint, una plataforma dedicada a las últimas noticias, análisis y discusiones sobre el ecosistema de Apple. Aquí encontrarás un espacio para conectar con otros entusiastas y estar al día con todo lo relacionado con la manzana.
+              </p>
+            </div>
+          )}
+          {activeSection === 'faqs' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <MessageSquare size={20} className="mr-2 text-blue-500" />
+                Preguntas Frecuentes
+              </h3>
+              {faqs.map((faq, index) => (
+                <div key={index} className="mb-4">
+                  <div
+                    onClick={() => handleFaqClick(index)}
+                    className="flex justify-between items-center cursor-pointer p-4 rounded-xl hover:bg-white/10 transition-colors duration-200"
+                  >
+                    <p className="font-medium text-lg">{faq.question}</p>
+                    {faqsOpen[index] ? <ChevronDown /> : <ChevronRight />}
+                  </div>
+                  {faqsOpen[index] && (
+                    <p className={`mt-2 ml-4 text-gray-600 dark:text-gray-400 animate-fade-in`}>
+                      {faq.answer}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {activeSection === 'activity' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <Activity size={20} className="mr-2 text-blue-500" />
+                Actividad Reciente
+              </h3>
+              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                <li>Publicación de "Análisis del nuevo M4 de Apple" hace 2 horas.</li>
+                <li>Respuesta a un usuario sobre las betas de iOS 18 hace 1 día.</li>
+                <li>Actualización del estado del sitio: "¡Nuevas funciones en camino!" hace 3 días.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+};
+
+const LoginModal = ({ onClose, onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Simulación de inicio de sesión
+    if (email && password) {
+      onLogin({ id: '1', name: 'Usuario' });
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-md relative animate-zoom-in transition-all duration-300 ease-in-out">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
+        >
+          <X size={24} />
+        </button>
+        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
+          Iniciar Sesión con Apple ID
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-gray-600 dark:text-gray-400 mb-2">Correo Electrónico</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-600 dark:text-gray-400 mb-2">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition-all duration-300 ease-in-out transform hover:scale-105"
+          >
+            Continuar con Apple ID
+          </button>
+        </form>
+      </div>
     </div>
-    <div class="profile-section">
-      <h2>About Me</h2>
-      <p>Designer & Apple enthusiast creating sleek UI/UX concepts inspired by Apple’s minimalism. Passionate about tech, innovation and design culture.</p>
+  );
+};
+
+const PostModal = ({ onClose, onNewPost }) => {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (content.trim()) {
+      setLoading(true);
+      setTimeout(() => {
+        const newPost = {
+          id: Math.random(),
+          author: 'Usuario',
+          content: content,
+          likes: 0,
+          comments: 0,
+          image: null,
+        };
+        onNewPost(newPost);
+        setLoading(false);
+        onClose();
+      }, 1000); // Simula el tiempo de carga y moderación
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-lg relative animate-zoom-in transition-all duration-300 ease-in-out">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
+        >
+          <X size={24} />
+        </button>
+        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
+          Crear Publicación
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full p-4 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 h-40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+              placeholder="¿Qué tienes en mente?..."
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || !content.trim()}
+            className={`w-full text-white py-3 rounded-xl font-bold transition-all duration-300 ease-in-out transform hover:scale-105
+              ${loading || !content.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+          >
+            {loading ? 'Subiendo...' : 'Publicar'}
+          </button>
+        </form>
+      </div>
     </div>
-    <div class="profile-section">
-      <h2>Contact</h2>
-      <p>Email: admin@macblueprint.com</p>
-      <p>Twitter: @MacBlueprint</p>
+  );
+};
+
+const App = () => {
+  const [currentPage, setCurrentPage] = useState('feed');
+  const [darkMode, setDarkMode] = useState(false);
+  const [user, setUser] = useState(null); // Estado de autenticación
+  const [showLogin, setShowLogin] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [posts, setPosts] = useState([
+    {
+      id: 1,
+      author: 'Mac Blueprint',
+      content: '¡Bienvenido a Mac Blueprint! Este es un espacio para todos los entusiastas de Apple. Comparte tus ideas, preguntas y lo último sobre tecnología.',
+      likes: 12,
+      comments: 5,
+      image: 'https://placehold.co/800x450/2563eb/ffffff?text=Nuevo+MacBook+Pro',
+    },
+    {
+      id: 2,
+      author: 'Mac Blueprint',
+      content: 'Análisis a fondo: ¿Vale la pena actualizar a iOS 19? Exploramos las nuevas funciones de IA y la optimización de batería.',
+      likes: 24,
+      comments: 8,
+      image: null,
+    },
+  ]);
+
+  useEffect(() => {
+    // Si el usuario ya está autenticado, podría haber un estado inicial aquí.
+    // Por ahora, simulamos que el admin siempre está logueado.
+    setUser({ id: 'admin', name: 'Mac Blueprint Admin' });
+  }, []);
+
+  const handleLogin = (userInfo) => {
+    setUser(userInfo);
+    setShowLogin(false);
+  };
+
+  const handleNewPost = (newPost) => {
+    setPosts([newPost, ...posts]);
+  };
+
+  const toggleTheme = () => {
+    setDarkMode(!darkMode);
+  };
+
+  return (
+    <div className={`min-h-screen font-sans ${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} transition-colors duration-500`}>
+      {/* Estilos para animaciones personalizadas */}
+      <style jsx>{`
+        @keyframes fade-in-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes zoom-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fade-in-up {
+          animation: fade-in-up 0.5s ease-out forwards;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out forwards;
+        }
+        .animate-zoom-in {
+          animation: zoom-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+      `}</style>
+
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />}
+      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} onNewPost={handleNewPost} />}
+
+      <Header
+        onNavigate={setCurrentPage}
+        onToggleTheme={toggleTheme}
+        onLoginClick={() => setShowLogin(true)}
+        user={user}
+        darkMode={darkMode}
+      />
+
+      <div className="pt-24 md:pt-28">
+        {currentPage === 'feed' && (
+          <Feed
+            posts={posts}
+            user={user}
+            onNewPost={() => setShowPostModal(true)}
+            darkMode={darkMode}
+          />
+        )}
+        {currentPage === 'profile' && (
+          <Profile
+            user={user}
+            onNavigate={setCurrentPage}
+            darkMode={darkMode}
+          />
+        )}
+      </div>
     </div>
-    <div class="profile-section">
-      <h2>FAQs</h2>
-      <p><strong>Q:</strong> Can I submit posts? <br /> <strong>A:</strong> Yes, but you need to log in first and posts are moderated.</p>
-      <p><strong>Q:</strong> How often do you post? <br /> <strong>A:</strong> Daily updates on Apple and design concepts.</p>
-    </div>
-    <div class="profile-section">
-      <h2>Explore</h2>
-      <p>Check out the latest Apple news, design trends and community discussions.</p>
-    </div>
-    <div class="profile-section">
-      <h2>Site Activity</h2>
-      <p>All posts and interactions are displayed in the feed.</p>
-    </div>
-  </section>
-</main>
+  );
+};
 
-<div class="modal-bg" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
-  <div class="modal">
-    <h2 id="loginTitle">Log In</h2>
-    <input type="text" id="username" placeholder="Enter your username" aria-label="Username" />
-    <button id="loginSubmit" disabled>Log In</button>
-  </div>
-</div>
+// Asegúrate de que el contenedor root exista en tu HTML, por ejemplo: <div id="root"></div>
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
 
-<script>
-  (() => {
-    const body = document.body
-    const themeToggle = document.getElementById('themeToggle')
-    const themeIcon = document.getElementById('themeIcon')
-    const loginBtn = document.getElementById('loginBtn')
-    const loginModal = document.getElementById('loginModal')
-    const loginSubmit = document.getElementById('loginSubmit')
-    const usernameInput = document.getElementById('username')
-    const postContent = document.getElementById('postContent')
-    const submitPost = document.getElementById('submitPost')
-    const feed = document.querySelector('.feed')
-    const logo = document.getElementById('logo')
-    const profilePage = document.getElementById('profilePage')
-    const newPostSection = document.querySelector('.new-post')
-
-    // State
-    let loggedInUser = null
-    let posts = JSON.parse(localStorage.getItem('macblueprint-posts') || '[]')
-
-    // Utility: bad words filter (basic)
-    const badWords = ['badword1', 'badword2', 'idiot', 'stupid']
-    function isClean(text) {
-      const lower = text.toLowerCase()
-      return !badWords.some(word => lower.includes(word))
-    }
-
-    // Render posts
-    function renderPosts() {
-      feed.innerHTML = ''
-      posts.slice().reverse().forEach(post => {
-        const postEl = document.createElement('article')
-        postEl.className = 'post'
-        postEl.tabIndex = 0
-        postEl.innerHTML = `
-          <div class="author">${post.author}</div>
-          <div class="date">${new Date(post.date).toLocaleString()}</div>
-          <div class="content">${post.content}</div>
-        `
-        feed.appendChild(postEl)
-      })
-    }
-
-    // Toggle theme
-    function updateTheme() {
-      if (body.classList.contains('dark')) {
-        themeIcon.innerHTML = '<path d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/>'
-        themeToggle.textContent = 'Light Mode'
-        themeToggle.prepend(themeIcon)
-      } else {
-        themeIcon.innerHTML = '<path d="M12 3a9 9 0 0 1 0 18 9 9 0 0 0 0-18z"/>'
-        themeToggle.textContent = 'Dark Mode'
-        themeToggle.prepend(themeIcon)
-      }
-    }
-
-    // Initial theme update
-    updateTheme()
-
-    // Toggle dark mode
-    themeToggle.onclick = () => {
-      body.classList.toggle('dark')
-      updateTheme()
-    }
-
-    // Open login modal
-    loginBtn.onclick = () => {
-      loginModal.classList.add('active')
-      usernameInput.focus()
-    }
-
-    // Close modal on click outside
-    loginModal.onclick = e => {
-      if (e.target === loginModal) {
-        loginModal.classList.remove('active')
-      }
-    }
-
-    // Enable login button only if input not empty
-    usernameInput.oninput = () => {
-      loginSubmit.disabled = usernameInput.value.trim().length === 0
-    }
-
-    // Login submit
-    loginSubmit.onclick = () => {
-      loggedInUser = usernameInput.value.trim()
-      loginModal.classList.remove('active')
-      loginBtn.textContent = `Hi, ${loggedInUser}`
-      usernameInput.value = ''
-      loginSubmit.disabled = true
-      postContent.disabled = false
-      submitPost.disabled = true
-    }
-
-    // Enable post button only if content and logged in
-    postContent.oninput = () => {
-      submitPost.disabled = !(postContent.value.trim().length > 0 && loggedInUser)
-    }
-
-    // Submit post
-    submitPost.onclick = () => {
-      const content = postContent.value.trim()
-      if (!isClean(content)) {
-        alert('Your post contains inappropriate language')
-        return
-      }
-      posts.push({
-        author: loggedInUser,
-        content,
-        date: new Date().toISOString()
-      })
-      localStorage.setItem('macblueprint-posts', JSON.stringify(posts))
-      renderPosts()
-      postContent.value = ''
-      submitPost.disabled = true
-    }
-
-    // Logo click - show profile
-    logo.onclick = () => {
-      main.querySelector('.feed').style.display = 'none'
-      newPostSection.style.display = 'none'
-      profilePage.classList.add('active')
-    }
-
-    // Clicking outside profile hides it and shows feed
-    profilePage.onclick = e => {
-      if (e.target === profilePage) {
-        profilePage.classList.remove('active')
-        main.querySelector('.feed').style.display = 'flex'
-        newPostSection.style.display = 'block'
-      }
-    }
-
-    // Initial render
-    renderPosts()
-    postContent.disabled = true
-  })()
-</script>
-</body>
-</html>
-
+// Opciones de configuración de Tailwind para este componente
+// Nota: En una configuración real, esto estaría en un archivo tailwind.config.js
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'apple-gray': '#F5F5F7',
+        'apple-dark': '#1F1F1F',
+      },
+    },
+  },
+  darkMode: 'class',
+}
