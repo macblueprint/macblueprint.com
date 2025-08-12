@@ -45,7 +45,27 @@ import {
 // y luego en "Tus aplicaciones".
 // ---------------------------------------------------------------------
 
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
+  apiKey: "AIzaSyCK6tzhgPaf7R2LjpNSx5zy3ZKAAnNF9hA",
+  authDomain: "macblueprint-671a7.firebaseapp.com",
+  projectId: "macblueprint-671a7",
+  storageBucket: "macblueprint-671a7.firebasestorage.app",
+  messagingSenderId: "371904877261",
+  appId: "1:371904877261:web:b1442c01bff86ad68b0f84",
+  measurementId: "G-QKC66GFZZM"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
   apiKey: "TU_API_KEY_AQUI",
   authDomain: "TU_AUTH_DOMAIN_AQUI",
   projectId: "TU_PROJECT_ID_AQUI",
