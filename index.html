@@ -1,10 +1,623 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Prueba</title>
-</head>
-<body style="background:black;color:white;font-family:sans-serif;">
-  <h1>Hola, sí funciona putito de mierda, pinche github de mierda, vete a la verga</h1>
-</body>
-</html>
+import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Apple,
+  Moon,
+  Sun,
+  User,
+  MessageCircle,
+  Heart,
+  Plus,
+  Send,
+  X,
+  Search,
+  Mail,
+  Phone,
+  MessageSquare,
+  Link,
+  Info,
+  Activity,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import {
+  getFirestore,
+  collection,
+  query,
+  onSnapshot,
+  addDoc,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove
+} from 'firebase/firestore';
+
+// ---------------------------------------------------------------------
+// ¡IMPORTANTE!
+//
+// He actualizado la inicialización de Firebase para que use las
+// variables globales de configuración del entorno (__firebase_config,
+// __initial_auth_token) en lugar de una configuración genérica.
+// Esto debería solucionar el problema de la página en blanco.
+// ---------------------------------------------------------------------
+
+// Componente del encabezado (Header)
+const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <header className="fixed top-4 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl p-2 md:p-3 z-50">
+      <div className={`backdrop-filter backdrop-blur-2xl ${darkMode ? 'bg-black/30' : 'bg-white/30'} rounded-full border-white/20 border-2 shadow-lg transition-all duration-300 ease-in-out`}>
+        <nav className="flex items-center justify-between">
+          <div
+            className="flex items-center space-x-2 cursor-pointer p-2 md:p-3 transition-transform duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10 rounded-full"
+            onClick={() => onNavigate('profile')}
+          >
+            <Apple className="h-6 w-6 text-white" />
+            <h1 className="text-white text-lg md:text-xl font-semibold whitespace-nowrap">
+              Mac Blueprint
+            </h1>
+          </div>
+
+          <div className="hidden md:flex flex-1 justify-center space-x-6 text-white text-sm font-medium">
+            <button
+              onClick={() => onNavigate('feed')}
+              className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110"
+            >
+              Feed
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+            </button>
+            <button className="group relative transition-transform duration-300 ease-in-out transform hover:scale-110">
+              Contactar
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></span>
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-2 p-2 md:p-3">
+            <button
+              onClick={onToggleTheme}
+              className="p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
+            >
+              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            {user ? (
+              <div className="flex items-center space-x-2 text-white bg-white/10 p-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out hover:scale-105">
+                <User className="h-5 w-5" />
+                <span className="hidden sm:inline-block text-sm">{user.name}</span>
+              </div>
+            ) : (
+              <button
+                onClick={onLoginClick}
+                className="flex items-center space-x-2 p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:bg-white/10"
+              >
+                <User className="h-5 w-5" />
+                <span className="hidden sm:inline-block text-sm">Log in</span>
+              </button>
+            )}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="md:hidden p-2 text-white rounded-full transition-all duration-300 ease-in-out transform hover:scale-125 hover:bg-white/10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
+          </div>
+        </nav>
+      </div>
+      {menuOpen && (
+        <div className="md:hidden absolute top-full mt-2 w-full backdrop-filter backdrop-blur-2xl bg-white/30 dark:bg-black/30 rounded-xl shadow-xl border-white/20 border-2 p-4 animate-fade-in-down transition-all duration-300">
+          <button
+            onClick={() => { onNavigate('feed'); setMenuOpen(false); }}
+            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
+          >
+            Feed
+          </button>
+          <button
+            className="w-full text-left py-2 px-4 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-zinc-700 rounded-lg transition-all duration-200"
+          >
+            Contactar
+          </button>
+        </div>
+      )}
+    </header>
+  );
+};
+
+// Componente de una publicación (Post)
+const Post = ({ post, user, onLike }) => {
+  const [liked, setLiked] = useState(post.likedBy?.includes(user?.uid) || false);
+  const [likes, setLikes] = useState(post.likes || 0);
+
+  const handleLike = () => {
+    if (user) {
+      onLike(post.id, user.uid, liked);
+      setLiked(!liked);
+      setLikes(liked ? likes - 1 : likes + 1);
+    }
+  };
+
+  return (
+    <div
+      className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-xl border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-500 ease-in-out transform hover:-translate-y-2 hover:shadow-2xl animate-fade-in-up"
+    >
+      <div className="flex items-center space-x-4 mb-4">
+        <div className="h-10 w-10 bg-gray-200 dark:bg-zinc-700 rounded-full flex items-center justify-center text-lg font-bold">
+          {post.author?.charAt(0) || 'U'}
+        </div>
+        <div>
+          <p className="font-bold text-lg text-zinc-900 dark:text-white">{post.author}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">@{post.author?.toLowerCase().replace(' ', '') || 'usuario'}</p>
+        </div>
+      </div>
+      <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{post.content}</p>
+      {post.image && (
+        <img
+          src={post.image}
+          alt="Post media"
+          className="w-full rounded-2xl mb-4 max-h-96 object-cover"
+        />
+      )}
+      <div className="flex items-center space-x-6 text-gray-500 dark:text-gray-400">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleLike}
+            className={`transition-all duration-300 ease-in-out transform hover:scale-125 hover:text-red-500 ${liked ? 'text-red-500 scale-125' : ''}`}
+          >
+            <Heart size={20} fill={liked ? 'currentColor' : 'none'} />
+          </button>
+          <span className="text-sm">{likes}</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <MessageCircle size={20} />
+          <span className="text-sm">{post.comments || 0}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente del feed principal
+const Feed = ({ posts, user, onNewPost, darkMode, onLike }) => {
+  return (
+    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
+      {user && (
+        <div className="flex justify-center mb-10">
+          <button
+            onClick={onNewPost}
+            className={`flex items-center space-x-2 px-6 py-3 rounded-full text-lg font-medium transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500/50
+              ${darkMode ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-zinc-800 text-white hover:bg-black'}`}
+          >
+            <Plus className="h-6 w-6" />
+            <span>Crear Publicación</span>
+          </button>
+        </div>
+      )}
+      <div className={`flex items-center p-4 rounded-full mb-10 shadow-lg border border-white/20 transition-all duration-300 ease-in-out
+        ${darkMode ? 'bg-black/30' : 'bg-white/50'}`}>
+        <Search className="text-gray-500 dark:text-gray-400 mr-3" />
+        <input
+          type="text"
+          placeholder="Buscar publicaciones..."
+          className={`flex-1 bg-transparent border-none outline-none text-zinc-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-lg`}
+        />
+      </div>
+
+      <div className="space-y-8">
+        {posts.map((post) => (
+          <Post key={post.id} post={post} user={user} onLike={onLike} />
+        ))}
+      </div>
+    </main>
+  );
+};
+
+// Componente de la página de perfil
+const Profile = ({ user, darkMode }) => {
+  const [activeSection, setActiveSection] = useState('about');
+  const [faqsOpen, setFaqsOpen] = useState({});
+
+  const faqs = [
+    { question: '¿Cómo puedo subir una publicación?', answer: 'Primero debes iniciar sesión. Una vez que lo hagas, aparecerá un botón en el feed principal para crear una nueva publicación.' },
+    { question: '¿Cómo se moderan los posts?', answer: 'Todas las publicaciones de los usuarios pasan por un filtro de moderación antes de ser visibles en el feed. Como administrador, reviso y apruebo cada post para mantener la calidad y el enfoque de la comunidad.' },
+    { question: '¿Qué tipo de noticias se publican aquí?', answer: 'Principalmente noticias sobre Apple, lanzamientos de productos, actualizaciones de software y análisis del mercado tecnológico. También comparto mis propios comunicados y opiniones.' },
+  ];
+
+  const handleFaqClick = (index) => {
+    setFaqsOpen(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  return (
+    <main className="mt-28 md:mt-24 px-4 max-w-4xl mx-auto pb-24">
+      <div className={`p-8 rounded-3xl shadow-xl transition-all duration-300
+        ${darkMode ? 'bg-black/30 text-white' : 'bg-white/50 text-zinc-900'}`}
+      >
+        <div className="flex flex-col items-center mb-6">
+          <div className="h-24 w-24 bg-gray-200 dark:bg-zinc-700 rounded-full mb-4 flex items-center justify-center text-5xl font-bold">
+            M
+          </div>
+          <h2 className="text-3xl font-bold">Mac Blueprint</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Administrador y Fundador</p>
+          <div className="flex space-x-4 mt-4 text-gray-500 dark:text-gray-400">
+            <Mail size={20} className="hover:text-blue-500 transition-colors" />
+            <Link size={20} className="hover:text-blue-500 transition-colors" />
+            <Phone size={20} className="hover:text-blue-500 transition-colors" />
+          </div>
+        </div>
+        {user && (
+          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mb-4">
+            ID de usuario: {user.uid}
+          </p>
+        )}
+        <div className={`flex justify-center flex-wrap gap-2 md:gap-4 mb-8 p-2 rounded-full border border-white/20 transition-all duration-300
+          ${darkMode ? 'bg-black/20' : 'bg-white/50'}`}>
+          <button
+            onClick={() => setActiveSection('about')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'about' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            Sobre Mí
+          </button>
+          <button
+            onClick={() => setActiveSection('faqs')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'faqs' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            FAQs
+          </button>
+          <button
+            onClick={() => setActiveSection('activity')}
+            className={`py-2 px-4 rounded-full transition-all duration-300 transform hover:scale-105
+              ${activeSection === 'activity' ? 'bg-blue-500 text-white shadow-md' : 'text-zinc-800 dark:text-white hover:bg-white/20 dark:hover:bg-zinc-700'}`}
+          >
+            Actividad
+          </button>
+        </div>
+
+        <div className="space-y-8">
+          {activeSection === 'about' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <Info size={20} className="mr-2 text-blue-500" />
+                Presentación
+              </h3>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                Hola, soy el fundador de Mac Blueprint, una plataforma dedicada a las últimas noticias, análisis y discusiones sobre el ecosistema de Apple. Aquí encontrarás un espacio para conectar con otros entusiastas y estar al día con todo lo relacionado con la manzana.
+              </p>
+            </div>
+          )}
+          {activeSection === 'faqs' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <MessageSquare size={20} className="mr-2 text-blue-500" />
+                Preguntas Frecuentes
+              </h3>
+              {faqs.map((faq, index) => (
+                <div key={index} className="mb-4">
+                  <div
+                    onClick={() => handleFaqClick(index)}
+                    className="flex justify-between items-center cursor-pointer p-4 rounded-xl hover:bg-white/10 transition-colors duration-200"
+                  >
+                    <p className="font-medium text-lg">{faq.question}</p>
+                    {faqsOpen[index] ? <ChevronDown /> : <ChevronRight />}
+                  </div>
+                  {faqsOpen[index] && (
+                    <p className={`mt-2 ml-4 text-gray-600 dark:text-gray-400 animate-fade-in`}>
+                      {faq.answer}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {activeSection === 'activity' && (
+            <div className={`p-6 rounded-2xl shadow-inner transition-all duration-300 ${darkMode ? 'bg-black/20' : 'bg-gray-100/50'}`}>
+              <h3 className="flex items-center text-xl font-semibold mb-4 text-zinc-900 dark:text-white">
+                <Activity size={20} className="mr-2 text-blue-500" />
+                Actividad Reciente
+              </h3>
+              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                <li>Publicación de "Análisis del nuevo M4 de Apple" hace 2 horas.</li>
+                <li>Respuesta a un usuario sobre las betas de iOS 18 hace 1 día.</li>
+                <li>Actualización del estado del sitio: "¡Nuevas funciones en camino!" hace 3 días.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+};
+
+// Componente del modal para iniciar sesión
+const LoginModal = ({ onClose, onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (email && password) {
+      // Simulación de inicio de sesión
+      onLogin({ id: '1', name: 'Usuario' });
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-md relative animate-zoom-in transition-all duration-300 ease-in-out">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
+        >
+          <X size={24} />
+        </button>
+        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
+          Iniciar Sesión con Apple ID
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-gray-600 dark:text-gray-400 mb-2">Correo Electrónico</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+            />
+          </div>
+          <div>
+            <label className="block text-gray-600 dark:text-gray-400 mb-2">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition-all duration-300 ease-in-out transform hover:scale-105"
+          >
+            Continuar con Apple ID
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Componente del modal para crear una publicación
+const PostModal = ({ onClose, user, db }) => {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (content.trim() && user && db) {
+      setLoading(true);
+      try {
+        const postsCollectionRef = collection(db, 'posts');
+        await addDoc(postsCollectionRef, {
+          author: user.name,
+          authorId: user.uid,
+          content: content.trim(),
+          createdAt: new Date(),
+          likes: 0,
+          likedBy: [],
+          comments: 0,
+          image: null,
+        });
+        setContent('');
+        onClose();
+      } catch (e) {
+        console.error("Error adding document: ", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl shadow-2xl w-full max-w-lg relative animate-zoom-in transition-all duration-300 ease-in-out">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-black dark:hover:text-white transition-transform duration-300 transform hover:rotate-90"
+        >
+          <X size={24} />
+        </button>
+        <h2 className="text-2xl font-bold mb-6 text-center text-zinc-900 dark:text-white">
+          Crear Publicación
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full p-4 rounded-xl border border-gray-300 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800 h-40 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+              placeholder="¿Qué tienes en mente?..."
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || !content.trim()}
+            className={`w-full text-white py-3 rounded-xl font-bold transition-all duration-300 ease-in-out transform hover:scale-105
+              ${loading || !content.trim() ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
+          >
+            {loading ? 'Subiendo...' : 'Publicar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Componente principal de la aplicación
+const App = () => {
+  const [currentPage, setCurrentPage] = useState('feed');
+  const [darkMode, setDarkMode] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [firebase, setFirebase] = useState({ db: null, auth: null });
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    // Inicializar Firebase
+    try {
+      const firebaseConfig = JSON.parse(__firebase_config);
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      setFirebase({ db, auth });
+
+      // Autenticar al usuario de forma anónima
+      const signIn = async () => {
+        if (typeof __initial_auth_token !== 'undefined') {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+        setUser({ uid: auth.currentUser.uid, name: 'Usuario Anónimo' });
+        setIsAuthReady(true);
+      };
+
+      onAuthStateChanged(auth, (authUser) => {
+        if (!authUser) {
+          signIn();
+        } else {
+          setUser({ uid: authUser.uid, name: 'Usuario Anónimo' });
+          setIsAuthReady(true);
+        }
+      });
+
+    } catch (e) {
+      console.error("Error initializing Firebase:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Sincronizar posts con Firestore una vez que la autenticación esté lista
+    if (isAuthReady && firebase.db) {
+      const postsCollectionRef = collection(firebase.db, 'posts');
+      const q = query(postsCollectionRef);
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const postsData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setPosts(postsData);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [isAuthReady, firebase.db]);
+
+  const handleLike = async (postId, userId, hasLiked) => {
+    if (!firebase.db) return;
+
+    const postRef = doc(firebase.db, 'posts', postId);
+    try {
+      await updateDoc(postRef, {
+        likes: hasLiked ? (posts.find(p => p.id === postId).likes || 0) - 1 : (posts.find(p => p.id === postId).likes || 0) + 1,
+        likedBy: hasLiked ? arrayRemove(userId) : arrayUnion(userId)
+      });
+    } catch (error) {
+      console.error('Error updating likes:', error);
+    }
+  };
+
+
+  const toggleTheme = () => {
+    setDarkMode(!darkMode);
+  };
+
+  return (
+    <div className={`min-h-screen font-sans ${darkMode ? 'dark bg-zinc-950 text-white' : 'bg-gray-50 text-zinc-900'} transition-colors duration-500`}>
+      <style jsx>{`
+        @keyframes fade-in-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes zoom-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fade-in-up {
+          animation: fade-in-up 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out forwards;
+        }
+        .animate-zoom-in {
+          animation: zoom-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+      `}</style>
+
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={(u) => setUser(u)} />}
+      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} />}
+
+      <Header
+        onNavigate={setCurrentPage}
+        onToggleTheme={toggleTheme}
+        onLoginClick={() => setShowLogin(true)}
+        user={user}
+        darkMode={darkMode}
+      />
+
+      <div className="pt-24 md:pt-28">
+        {currentPage === 'feed' && (
+          <Feed
+            posts={posts}
+            user={user}
+            onNewPost={() => setShowPostModal(true)}
+            darkMode={darkMode}
+            onLike={handleLike}
+          />
+        )}
+        {currentPage === 'profile' && (
+          <Profile
+            user={user}
+            darkMode={darkMode}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
+
+// Opciones de configuración de Tailwind para este componente
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'apple-gray': '#F5F5F7',
+        'apple-dark': '#1F1F1F',
+      },
+    },
+  },
+  darkMode: 'class',
+}
