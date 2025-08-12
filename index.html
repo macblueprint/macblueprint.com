@@ -21,7 +21,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -30,12 +30,29 @@ import {
   addDoc,
   doc,
   updateDoc,
-  orderBy
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+// ---------------------------------------------------------------------
+// ¡IMPORTANTE!
+//
+// Para que esta aplicación funcione fuera de este entorno, debes
+// reemplazar el objeto 'firebaseConfig' con la configuración de tu
+// propio proyecto de Firebase.
+//
+// Puedes encontrarla en la consola de Firebase, en "Configuración del proyecto"
+// y luego en "Tus aplicaciones".
+// ---------------------------------------------------------------------
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY_AQUI",
+  authDomain: "TU_AUTH_DOMAIN_AQUI",
+  projectId: "TU_PROJECT_ID_AQUI",
+  storageBucket: "TU_STORAGE_BUCKET_AQUI",
+  messagingSenderId: "TU_MESSAGING_SENDER_ID_AQUI",
+  appId: "TU_APP_ID_AQUI"
+};
 
 // Componente del encabezado (Header)
 const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
@@ -383,7 +400,7 @@ const LoginModal = ({ onClose, onLogin }) => {
 };
 
 // Componente del modal para crear una publicación
-const PostModal = ({ onClose, user, db, postsCollectionRef }) => {
+const PostModal = ({ onClose, user, db }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -392,6 +409,7 @@ const PostModal = ({ onClose, user, db, postsCollectionRef }) => {
     if (content.trim() && user && db) {
       setLoading(true);
       try {
+        const postsCollectionRef = collection(db, 'posts');
         await addDoc(postsCollectionRef, {
           author: user.name,
           authorId: user.uid,
@@ -455,31 +473,26 @@ const App = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [posts, setPosts] = useState([]);
-  const [firebase, setFirebase] = useState({ db: null, auth: null, postsCollectionRef: null });
+  const [firebase, setFirebase] = useState({ db: null, auth: null });
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
     // Inicializar Firebase
     try {
+      if (Object.values(firebaseConfig).some(val => val.includes('TU_'))) {
+        console.error("Firebase no está configurado. Por favor, reemplaza la configuración de Firebase en el código.");
+        return;
+      }
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
       const auth = getAuth(app);
-      const postsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
-      setFirebase({ db, auth, postsCollectionRef });
+      setFirebase({ db, auth });
 
-      // Autenticar al usuario
+      // Autenticar al usuario de forma anónima
       onAuthStateChanged(auth, async (authUser) => {
-        if (authUser) {
-          // Si el usuario ya está autenticado, establecer su información
-          setUser(authUser);
-        } else {
-          // Si no, intentar iniciar sesión con el token personalizado o de forma anónima
+        if (!authUser) {
           try {
-            if (initialAuthToken) {
-              await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-              await signInAnonymously(auth);
-            }
+            await signInAnonymously(auth);
           } catch (error) {
             console.error('Error during Firebase authentication:', error);
           }
@@ -494,7 +507,8 @@ const App = () => {
   useEffect(() => {
     // Sincronizar posts con Firestore una vez que la autenticación esté lista
     if (isAuthReady && firebase.db) {
-      const q = query(firebase.postsCollectionRef);
+      const postsCollectionRef = collection(firebase.db, 'posts');
+      const q = query(postsCollectionRef);
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const postsData = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -505,24 +519,22 @@ const App = () => {
 
       return () => unsubscribe();
     }
-  }, [isAuthReady, firebase.db, firebase.postsCollectionRef]);
+  }, [isAuthReady, firebase.db]);
 
   const handleLike = async (postId, userId, hasLiked) => {
     if (!firebase.db) return;
 
-    const postRef = doc(firebase.db, 'artifacts', appId, 'public', 'data', 'posts', postId);
-    const newLikesCount = hasLiked ? firebase.db.FieldValue.increment(-1) : firebase.db.FieldValue.increment(1);
-    const newLikedBy = hasLiked
-      ? firebase.db.FieldValue.arrayRemove(userId)
-      : firebase.db.FieldValue.arrayUnion(userId);
-
+    const postRef = doc(firebase.db, 'posts', postId);
     try {
-      // Simula la actualización en el servidor
-      console.log('Update post likes and likedBy: ', postId);
+      await updateDoc(postRef, {
+        likes: hasLiked ? (posts.find(p => p.id === postId).likes || 0) - 1 : (posts.find(p => p.id === postId).likes || 0) + 1,
+        likedBy: hasLiked ? arrayRemove(userId) : arrayUnion(userId)
+      });
     } catch (error) {
       console.error('Error updating likes:', error);
     }
   };
+
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
@@ -567,7 +579,7 @@ const App = () => {
       `}</style>
 
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={(u) => setUser(u)} />}
-      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} postsCollectionRef={firebase.postsCollectionRef} />}
+      {showPostModal && <PostModal onClose={() => setShowPostModal(false)} user={user} db={firebase.db} />}
 
       <Header
         onNavigate={setCurrentPage}
