@@ -21,7 +21,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -37,24 +37,11 @@ import {
 // ---------------------------------------------------------------------
 // ¡IMPORTANTE!
 //
-// Para que esta aplicación funcione fuera de este entorno, debes
-// reemplazar el objeto 'firebaseConfig' con la configuración de tu
-// propio proyecto de Firebase.
-//
-// Puedes encontrarla en la consola de Firebase, en "Configuración del proyecto"
-// y luego en "Tus aplicaciones".
+// He actualizado la inicialización de Firebase para que use las
+// variables globales de configuración del entorno (__firebase_config,
+// __initial_auth_token) en lugar de una configuración genérica.
+// Esto debería solucionar el problema de la página en blanco.
 // ---------------------------------------------------------------------
-
-// Tu configuración de Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyCK6tzhgPaf7R2LjpNSx5zy3ZKAAnNF9hA",
-  authDomain: "macblueprint-671a7.firebaseapp.com",
-  projectId: "macblueprint-671a7",
-  storageBucket: "macblueprint-671a7.firebasestorage.app",
-  messagingSenderId: "371904877261",
-  appId: "1:371904877261:web:b1442c01bff86ad68b0f84",
-  measurementId: "G-QKC66GFZZM"
-};
 
 // Componente del encabezado (Header)
 const Header = ({ onNavigate, onToggleTheme, onLoginClick, user, darkMode }) => {
@@ -481,22 +468,32 @@ const App = () => {
   useEffect(() => {
     // Inicializar Firebase
     try {
+      const firebaseConfig = JSON.parse(__firebase_config);
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
       const auth = getAuth(app);
       setFirebase({ db, auth });
 
       // Autenticar al usuario de forma anónima
-      onAuthStateChanged(auth, async (authUser) => {
-        if (!authUser) {
-          try {
-            await signInAnonymously(auth);
-          } catch (error) {
-            console.error('Error during Firebase authentication:', error);
-          }
+      const signIn = async () => {
+        if (typeof __initial_auth_token !== 'undefined') {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
+        setUser({ uid: auth.currentUser.uid, name: 'Usuario Anónimo' });
         setIsAuthReady(true);
+      };
+
+      onAuthStateChanged(auth, (authUser) => {
+        if (!authUser) {
+          signIn();
+        } else {
+          setUser({ uid: authUser.uid, name: 'Usuario Anónimo' });
+          setIsAuthReady(true);
+        }
       });
+
     } catch (e) {
       console.error("Error initializing Firebase:", e);
     }
